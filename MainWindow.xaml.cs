@@ -106,6 +106,28 @@ namespace VolMixer
         }
 
         // --- マウスホイール/ボタン操作 (UIロジック) ---
+        /// <summary>
+        /// 透明度スライダー上でのマウスホイール操作
+        /// </summary>
+        private void OpacitySlider_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (sender is Slider slider)
+            {
+                // 2% 単位で増減
+                double change = 0.02;
+                double currentValue = slider.Value;
+
+                if (e.Delta > 0)
+                {
+                    slider.Value = Math.Min(slider.Maximum, currentValue + change);
+                }
+                else
+                {
+                    slider.Value = Math.Max(slider.Minimum, currentValue - change);
+                }
+                e.Handled = true;
+            }
+        }
 
         /// <summary>
         /// オーディオセッション上でのマウスホイール操作（音量調整）
@@ -131,29 +153,6 @@ namespace VolMixer
         }
 
         /// <summary>
-        /// 透明度スライダー上でのマウスホイール操作
-        /// </summary>
-        private void OpacitySlider_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
-        {
-            if (sender is Slider slider)
-            {
-                // 2% 単位で増減
-                double change = 0.02;
-                double currentValue = slider.Value;
-
-                if (e.Delta > 0)
-                {
-                    slider.Value = Math.Min(slider.Maximum, currentValue + change);
-                }
-                else
-                {
-                    slider.Value = Math.Max(slider.Minimum, currentValue - change);
-                }
-                e.Handled = true;
-            }
-        }
-
-        /// <summary>
         /// マウス中クリックでのミュート切り替え
         /// </summary>
         private void Border_MouseDown(object sender, MouseButtonEventArgs e)
@@ -163,6 +162,42 @@ namespace VolMixer
                 if (sender is Border border && border.DataContext is AudioSessionModel session)
                 {
                     session.IsMuted = !session.IsMuted;
+                }
+            }
+        }
+        /// <summary>
+        /// マスターフェーダー上でのマウスホイール操作（音量調整）
+        /// </summary>
+        private void MasterFader_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (sender is Border border && border.DataContext is MixerViewModel session)
+            {
+                // 5% 単位で増減
+                float change = 0.05f;
+                if (e.Delta > 0)
+                {
+                    if (session.MasterVolume + change <= 1.0f) session.MasterVolume += change;
+                    else session.MasterVolume = 1.0f;
+                }
+                else
+                {
+                    if (session.MasterVolume - change >= 0.0f) session.MasterVolume -= change;
+                    else session.MasterVolume = 0.0f;
+                }
+                e.Handled = true; // イベント伝播を停止
+            }
+        }
+
+        /// <summary>
+        /// マスターフェーダーのマウス中クリックでのミュート切り替え
+        /// </summary>
+        private void MasterFader_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton == MouseButton.Middle)
+            {
+                if (sender is Border border && border.DataContext is MixerViewModel session)
+                {
+                    session.MasterIsMuted = !session.MasterIsMuted;
                 }
             }
         }
