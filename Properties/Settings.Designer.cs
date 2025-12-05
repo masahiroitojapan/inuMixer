@@ -82,5 +82,29 @@ namespace VolMixer.Properties {
                 this["WindowHeight"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string AppOrder {
+            get {
+                return ((string)(this["AppOrder"]));
+            }
+            set {
+                this["AppOrder"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string HiddenApps {
+            get {
+                return ((string)(this["HiddenApps"]));
+            }
+            set {
+                this["HiddenApps"] = value;
+            }
+        }
     }
 }

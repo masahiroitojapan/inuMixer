@@ -4,238 +4,207 @@
         xmlns:local="clr-namespace:VolMixer"
         Title="VolMixer" Height="500" Width="800"
         MinHeight="300" MinWidth="300"
-        
-        WindowStyle="None"
-        AllowsTransparency="True"
-        Background="Transparent">
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent">
 
-  <WindowChrome.WindowChrome>
-    <WindowChrome ResizeBorderThickness="5" CaptionHeight="0" GlassFrameThickness="0" CornerRadius="0"/>
-  </WindowChrome.WindowChrome>
+    <WindowChrome.WindowChrome>
+        <WindowChrome ResizeBorderThickness="5" CaptionHeight="0" GlassFrameThickness="0" CornerRadius="0"/>
+    </WindowChrome.WindowChrome>
 
-  <Window.Resources>
-    <!-- ========================================================== -->
-    <!-- ★ 標準再現スタイル (五角形ツマミ・色変更可能) ★ -->
-    <!-- ========================================================== -->
+    <Window.Resources>
+        <!-- (スタイルの定義は変更なし。そのまま維持) -->
+        <ControlTemplate x:Key="PointedThumbTemplate" TargetType="{x:Type Thumb}">
+            <Grid>
+                <Path Data="M 0,0 L 14,0 L 19,5 L 14,10 L 0,10 Z" Fill="#44000000" Margin="1,1,-1,-1"/>
+                <Path x:Name="ThumbPath" Data="M 0,0 L 14,0 L 19,5 L 14,10 L 0,10 Z" 
+                      Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Slider}}"
+                      Stroke="#888888" StrokeThickness="1" Stretch="Fill" Width="20" Height="10"/>
+            </Grid>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="ThumbPath" Property="Fill" Value="#DDDDDD"/>
+                    <Setter TargetName="ThumbPath" Property="Stroke" Value="White"/>
+                </Trigger>
+                <Trigger Property="IsDragging" Value="True">
+                    <Setter TargetName="ThumbPath" Property="Fill" Value="#AAAAAA"/>
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
 
-    <!-- ツマミ (Thumb) のテンプレート: 五角形 (ホームベース型) -->
-    <ControlTemplate x:Key="PointedThumbTemplate" TargetType="{x:Type Thumb}">
-      <Grid>
-        <!-- 影のエフェクト -->
-        <Path Data="M 0,0 L 14,0 L 19,5 L 14,10 L 0,10 Z" Fill="#44000000" Margin="1,1,-1,-1"/>
+        <ControlTemplate x:Key="PointedSliderTemplate" TargetType="{x:Type Slider}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto" MinWidth="6"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TickBar x:Name="BottomTick" Grid.Column="2" Visibility="Visible" Fill="#AAAAAA" Placement="Right" Width="4" Margin="2,0,0,0"/>
+                <Border Grid.Column="1" BorderBrush="#888888" BorderThickness="1" Background="#333333" Width="4" HorizontalAlignment="Center" CornerRadius="0"/>
+                <Track Grid.Column="1" x:Name="PART_Track" Orientation="Vertical">
+                    <Track.DecreaseRepeatButton>
+                        <RepeatButton Command="{x:Static Slider.DecreaseLarge}" Opacity="0" IsTabStop="False"/>
+                    </Track.DecreaseRepeatButton>
+                    <Track.IncreaseRepeatButton>
+                        <RepeatButton Command="{x:Static Slider.IncreaseLarge}" Opacity="0" IsTabStop="False"/>
+                    </Track.IncreaseRepeatButton>
+                    <Track.Thumb>
+                        <Thumb Template="{StaticResource PointedThumbTemplate}"/>
+                    </Track.Thumb>
+                </Track>
+            </Grid>
+        </ControlTemplate>
 
-        <!-- 本体: Foregroundプロパティの色を使用 -->
-        <Path x:Name="ThumbPath"
-              Data="M 0,0 L 14,0 L 19,5 L 14,10 L 0,10 Z"
-              Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Slider}}"
-              Stroke="#888888" StrokeThickness="1"
-              Stretch="Fill"
-              Width="20" Height="10"/>
-      </Grid>
-      <ControlTemplate.Triggers>
-        <Trigger Property="IsMouseOver" Value="True">
-          <Setter TargetName="ThumbPath" Property="Fill" Value="#DDDDDD"/>
-          <!-- 赤色指定(マスター)の場合は少し明るくするロジックが必要だが、簡易的にハイライトで代用 -->
-          <Setter TargetName="ThumbPath" Property="Stroke" Value="White"/>
-        </Trigger>
-        <Trigger Property="IsDragging" Value="True">
-          <Setter TargetName="ThumbPath" Property="Fill" Value="#AAAAAA"/>
-        </Trigger>
-      </ControlTemplate.Triggers>
-    </ControlTemplate>
+        <Style x:Key="PointedSliderStyle" TargetType="{x:Type Slider}">
+            <Setter Property="Template" Value="{StaticResource PointedSliderTemplate}"/>
+            <Setter Property="TickPlacement" Value="BottomRight"/>
+            <Setter Property="IsMoveToPointEnabled" Value="True"/>
+            <Setter Property="Foreground" Value="#EEEEEE"/>
+        </Style>
 
-    <!-- スライダー全体のテンプレート -->
-    <ControlTemplate x:Key="PointedSliderTemplate" TargetType="{x:Type Slider}">
-      <Grid>
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="Auto"/>
-          <ColumnDefinition Width="Auto" MinWidth="6"/>
-          <!-- トラック幅 -->
-          <ColumnDefinition Width="Auto"/>
-        </Grid.ColumnDefinitions>
+        <!-- アプリフェーダー (ドラッグイベント追加) -->
+        <DataTemplate DataType="{x:Type local:AudioSessionModel}">
+            <Border x:Name="AppFaderBorder" 
+                    BorderBrush="DarkGray" BorderThickness="1" Margin="5" Padding="5" Width="80" Background="#2C2C2C"
+                    
+                    PreviewMouseLeftButtonDown="AppFader_PreviewMouseLeftButtonDown"
+                    PreviewMouseMove="AppFader_PreviewMouseMove"
+                    PreviewMouseLeftButtonUp="AppFader_PreviewMouseLeftButtonUp"
+                    
+                    PreviewMouseWheel="Border_PreviewMouseWheel" 
+                    MouseDown="Border_MouseDown" 
+                    Cursor="Hand"
+                    ToolTip="ドラッグ: 移動 / スクロール: 音量調整 / 中クリック: ミュート">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0">
+                        <Image Source="{Binding Icon}" Width="32" Height="32" Margin="0,0,0,5" />
+                        <TextBlock Text="{Binding DisplayName}" Foreground="White" HorizontalAlignment="Center" 
+                                   TextTrimming="CharacterEllipsis" ToolTip="{Binding DisplayName}" FontSize="10" Margin="0,0,0,5" />
+                        <TextBlock Text="{Binding VolumePercent, StringFormat={}{0}%}" 
+                                   Foreground="#00AEEF" FontWeight="Bold" HorizontalAlignment="Center" FontSize="14" Margin="0,5,0,5" />
+                    </StackPanel>
+                    <Grid Grid.Row="1" Margin="0,10,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="10"/>
+                        </Grid.ColumnDefinitions>
+                        <Slider Grid.Column="0" Orientation="Vertical" 
+                                Style="{StaticResource PointedSliderStyle}"
+                                Minimum="0.0" Maximum="1.0" 
+                                Value="{Binding Volume, Mode=TwoWay}"
+                                HorizontalAlignment="Center"
+                                TickFrequency="0.1"/>
+                        <ProgressBar Grid.Column="1" Orientation="Vertical" Minimum="0.0" Maximum="1.0"
+                                     Value="{Binding PeakValue, Mode=OneWay}"
+                                     Background="#444444" Foreground="#FFFFFF" BorderThickness="0"/>
+                    </Grid>
+                    <ToggleButton Grid.Row="2" Content="Mute" IsChecked="{Binding IsMuted, Mode=TwoWay}"
+                                  Foreground="White" FontWeight="Bold" Background="#6B6B6B" />
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </Window.Resources>
 
-        <!-- 目盛り (BottomRight指定時は右側に表示) -->
-        <TickBar x:Name="BottomTick" Grid.Column="2" Visibility="Visible" Fill="#AAAAAA" Placement="Right" Width="4" Margin="2,0,0,0"/>
-
-        <!-- トラック背景 -->
-        <Border Grid.Column="1" BorderBrush="#888888" BorderThickness="1" Background="#333333" Width="4" HorizontalAlignment="Center" CornerRadius="0"/>
-
-        <!-- トラック本体 -->
-        <Track Grid.Column="1" x:Name="PART_Track" Orientation="Vertical">
-          <Track.DecreaseRepeatButton>
-            <RepeatButton Command="{x:Static Slider.DecreaseLarge}" Opacity="0" IsTabStop="False"/>
-          </Track.DecreaseRepeatButton>
-          <Track.IncreaseRepeatButton>
-            <RepeatButton Command="{x:Static Slider.IncreaseLarge}" Opacity="0" IsTabStop="False"/>
-          </Track.IncreaseRepeatButton>
-          <Track.Thumb>
-            <!-- 定義した五角形ツマミを使用 -->
-            <Thumb Template="{StaticResource PointedThumbTemplate}"/>
-          </Track.Thumb>
-        </Track>
-      </Grid>
-    </ControlTemplate>
-
-    <!-- 適用するスタイル -->
-    <Style x:Key="PointedSliderStyle" TargetType="{x:Type Slider}">
-      <Setter Property="Template" Value="{StaticResource PointedSliderTemplate}"/>
-      <Setter Property="TickPlacement" Value="BottomRight"/>
-      <!-- 常に右側に目盛り -->
-      <Setter Property="IsMoveToPointEnabled" Value="True"/>
-      <Setter Property="Foreground" Value="#EEEEEE"/>
-      <!-- デフォルトの色 -->
-    </Style>
-
-    <!-- ========================================================== -->
-    <!-- アプリケーションセッションのテンプレート -->
-    <!-- ========================================================== -->
-    <DataTemplate DataType="{x:Type local:AudioSessionModel}">
-      <Border BorderBrush="DarkGray" BorderThickness="1" Margin="5" Padding="5" Width="80" Background="#2C2C2C"
-              PreviewMouseWheel="Border_PreviewMouseWheel" MouseDown="Border_MouseDown" Cursor="Hand"
-              ToolTip="スクロール: 音量調整 / 中クリック: ミュート">
-
-        <Grid>
-          <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-          </Grid.RowDefinitions>
-
-          <!-- 上部情報 -->
-          <StackPanel Grid.Row="0">
-            <Image Source="{Binding Icon}" Width="32" Height="32" Margin="0,0,0,5" />
-            <TextBlock Text="{Binding DisplayName}" Foreground="White" HorizontalAlignment="Center"
-                       TextTrimming="CharacterEllipsis" ToolTip="{Binding DisplayName}" FontSize="10" Margin="0,0,0,5" />
-            <TextBlock Text="{Binding VolumePercent, StringFormat={}{0}%}"
-                       Foreground="#00AEEF" FontWeight="Bold" HorizontalAlignment="Center" FontSize="14" Margin="0,5,0,5" />
-          </StackPanel>
-
-          <!-- フェーダー＆メーター -->
-          <Grid Grid.Row="1" Margin="0,10,0,10">
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="*"/>
-              <ColumnDefinition Width="10"/>
-            </Grid.ColumnDefinitions>
-
-            <!-- アプリ用スライダー: スタイル適用のみ (色はデフォルト) -->
-            <Slider Grid.Column="0" Orientation="Vertical"
-                    Style="{StaticResource PointedSliderStyle}"
-                    Minimum="0.0" Maximum="1.0"
-                    Value="{Binding Volume, Mode=TwoWay}"
-                    HorizontalAlignment="Center"
-                    TickFrequency="0.1"/>
-
-            <ProgressBar Grid.Column="1" Orientation="Vertical" Minimum="0.0" Maximum="1.0"
-                         Value="{Binding PeakValue, Mode=OneWay}"
-                         Background="#444444" Foreground="#FFFFFF" BorderThickness="0"/>
-          </Grid>
-
-          <ToggleButton Grid.Row="2" Content="Mute" IsChecked="{Binding IsMuted, Mode=TwoWay}"
-                        Foreground="White" FontWeight="Bold" Background="#6B6B6B" />
-        </Grid>
-      </Border>
-    </DataTemplate>
-  </Window.Resources>
-
-  <Grid>
-    <Border Background="#1E1E1E" CornerRadius="3">
-      <Grid>
-        <Grid.RowDefinitions>
-          <RowDefinition Height="Auto"/>
-          <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
-
-        <!-- コントロールバー -->
-        <Grid Grid.Row="0">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="Auto"/>
-          </Grid.ColumnDefinitions>
-
-          <StackPanel Grid.Column="0" Orientation="Vertical" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10">
-            <Button Content="&#x21BB; 更新" Command="{Binding RefreshCommand}"
-                    Padding="10,5" Background="#505050" Foreground="White" BorderBrush="#808080" HorizontalAlignment="Left"/>
-            <CheckBox Content="常に手前に表示" Foreground="White" Margin="0,10,0,0"
-                      IsChecked="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type Window}}, Path=Topmost, Mode=TwoWay}" />
-            <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
-              <TextBlock Text="透明度:" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-              <Slider Minimum="0.1" Maximum="1.0" Width="100"
-                      Value="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type Window}}, Path=Opacity, Mode=TwoWay}"
-                      IsMoveToPointEnabled="True" PreviewMouseWheel="OpacitySlider_PreviewMouseWheel"/>
-            </StackPanel>
-          </StackPanel>
-
-          <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="5">
-            <Button Content="＿" Click="MinimizeButton_Click" Width="30" Height="25" Margin="0,0,5,0"
-                    Background="#505050" Foreground="White" BorderBrush="#808080" ToolTip="最小化"/>
-            <Button Content="✕" Click="CloseButton_Click" Width="30" Height="25"
-                    Background="#00AEEF" Foreground="White" BorderBrush="#808080" FontWeight="Bold" ToolTip="閉じる"/>
-          </StackPanel>
-        </Grid>
-
-        <!-- メインミキサーエリア -->
-        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-          <StackPanel Orientation="Horizontal">
-
-            <!-- ★ マスターフェーダー ★ -->
-            <!-- デザインはアプリと全く同じ構成。色だけを変える -->
-            <Border BorderBrush="DarkGray" BorderThickness="1" Margin="15,5,10,5" Padding="5" Width="80" Background="#2C2C2C"
-                    PreviewMouseWheel="MasterFader_PreviewMouseWheel" MouseDown="MasterFader_MouseDown"
-                    ToolTip="システム全体のマスター音量">
-              <Grid>
+    <Grid>
+        <Border Background="#1E1E1E" CornerRadius="3">
+            <Grid>
                 <Grid.RowDefinitions>
-                  <RowDefinition Height="Auto"/>
-                  <RowDefinition Height="*"/>
-                  <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <StackPanel Grid.Row="0">
-                  <TextBlock Text="&#x1F50A;" FontSize="24" HorizontalAlignment="Center" Margin="0,-1,0,5"
-                             Foreground="White" ToolTip="スピーカーアイコン" />
-                  <TextBlock Text="MASTER" Foreground="White" HorizontalAlignment="Center"
-                             FontWeight="normal" FontSize="10" Margin="0,0,0,5" />
-                  <!-- パーセント表示: 赤色 -->
-                  <TextBlock Text="{Binding MasterVolumePercent, StringFormat={}{0}%}"
-                             Foreground="#FF4444" FontWeight="Bold" HorizontalAlignment="Center" FontSize="14" Margin="0,5,0,5" />
-                </StackPanel>
+                <!-- コントロールバー -->
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
 
-                <Grid Grid.Row="1" Margin="0,10,0,10">
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="10"/>
-                  </Grid.ColumnDefinitions>
+                    <!-- 左側: 設定 -->
+                    <StackPanel Grid.Column="0" Orientation="Vertical" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10">
+                        <CheckBox Content="常に手前に表示" Foreground="White" Margin="0,0,0,0"
+                                  IsChecked="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type Window}}, Path=Topmost, Mode=TwoWay}" />
 
-                  <!-- マスター用スライダー: 同じスタイルを使い、Foregroundで赤色を指定 -->
-                  <Slider Grid.Column="0" Orientation="Vertical"
-                          Style="{StaticResource PointedSliderStyle}"
-                          Foreground="#FF4444"
-                          Minimum="0.0" Maximum="1.0"
-                          Value="{Binding MasterVolume, Mode=TwoWay}"
-                          HorizontalAlignment="Center"
-                          TickFrequency="0.1" />
+                        <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                            <TextBlock Text="透明度:" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <Slider Minimum="0.1" Maximum="1.0" Width="100" 
+                                    Value="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type Window}}, Path=Opacity, Mode=TwoWay}" 
+                                    IsMoveToPointEnabled="True" PreviewMouseWheel="OpacitySlider_PreviewMouseWheel"/>
+                        </StackPanel>
+                    </StackPanel>
 
-                  <ProgressBar Grid.Column="1" Orientation="Vertical" Minimum="0.0" Maximum="1.0"
-                               Value="{Binding MasterPeakValue, Mode=OneWay}"
-                               Background="#444444" Foreground="#FFFFFF" BorderThickness="0"/>
+                    <!-- 右側: ウィンドウ操作ボタン -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="5">
+                        <!-- 設定ボタン (⚙) -->
+                        <Button Content="⚙" Click="SettingsButton_Click"
+                                Width="30" Height="25" Margin="0,0,5,0"
+                                Background="#505050" Foreground="White" BorderBrush="#808080" 
+                                FontFamily="Segoe UI Symbol" ToolTip="表示アプリの設定"/>
+
+                        <Button Content="＿" Click="MinimizeButton_Click" Width="30" Height="25" Margin="0,0,5,0"
+                                Background="#505050" Foreground="White" BorderBrush="#808080" ToolTip="最小化"/>
+                        <Button Content="✕" Click="CloseButton_Click" Width="30" Height="25"
+                                Background="#00AEEF" Foreground="White" BorderBrush="#808080" FontWeight="Bold" ToolTip="閉じる"/>
+                    </StackPanel>
                 </Grid>
 
-                <ToggleButton Grid.Row="2" Content="Mute" IsChecked="{Binding MasterIsMuted, Mode=TwoWay}"
-                              Foreground="White" FontWeight="Bold" Background="#6B6B6B" />
-              </Grid>
-            </Border>
+                <!-- メインミキサーエリア -->
+                <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <StackPanel Orientation="Horizontal">
+                        <!-- マスターフェーダー -->
+                        <Border BorderBrush="DarkGray" BorderThickness="1" Margin="15,5,10,5" Padding="5" Width="80" Background="#2C2C2C"
+                                PreviewMouseWheel="MasterFader_PreviewMouseWheel" 
+                                MouseDown="MasterFader_MouseDown"
+                                ToolTip="システム全体のマスター音量">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <StackPanel Grid.Row="0">
+                                    <TextBlock Text="&#x1F50A;" FontSize="25" HorizontalAlignment="Center" Margin="0,-1,0,5" 
+                                               Foreground="White" ToolTip="スピーカーアイコン" />
+                                    <TextBlock Text="MASTER" Foreground="White" HorizontalAlignment="Center" 
+                                               FontWeight="Normal" FontSize="10" Margin="0,0,0,5" />
+                                    <TextBlock Text="{Binding MasterVolumePercent, StringFormat={}{0}%}" 
+                                               Foreground="#FF4444" FontWeight="Bold" HorizontalAlignment="Center" FontSize="14" Margin="0,4,0,5" />
+                                </StackPanel>
+                                <Grid Grid.Row="1" Margin="0,10,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="10"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider Grid.Column="0" Orientation="Vertical" 
+                                            Style="{StaticResource PointedSliderStyle}"
+                                            Foreground="#FF4444" 
+                                            Minimum="0.0" Maximum="1.0" 
+                                            Value="{Binding MasterVolume, Mode=TwoWay}"
+                                            HorizontalAlignment="Center"
+                                            TickFrequency="0.1" />
+                                    <ProgressBar Grid.Column="1" Orientation="Vertical" Minimum="0.0" Maximum="1.0"
+                                                 Value="{Binding MasterPeakValue, Mode=OneWay}"
+                                                 Background="#444444" Foreground="#FFFFFF" BorderThickness="0"/>
+                                </Grid>
+                                <ToggleButton Grid.Row="2" Content="Mute" IsChecked="{Binding MasterIsMuted, Mode=TwoWay}"
+                                              Foreground="White" FontWeight="Bold" Background="#6B6B6B" />
+                            </Grid>
+                        </Border>
 
-            <!-- アプリ一覧 -->
-            <ItemsControl ItemsSource="{Binding AudioSessions}">
-              <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                  <StackPanel Orientation="Horizontal"/>
-                </ItemsPanelTemplate>
-              </ItemsControl.ItemsPanel>
-            </ItemsControl>
-
-          </StackPanel>
-        </ScrollViewer>
-      </Grid>
-    </Border>
-  </Grid>
+                        <!-- アプリ一覧 -->
+                        <ItemsControl ItemsSource="{Binding AudioSessions}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+    </Grid>
 </Window>
