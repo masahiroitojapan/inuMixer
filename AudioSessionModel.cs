@@ -1,90 +1,108 @@
-using System;
-using System.ComponentModel;
-using System.Diagnostics;
-using System.Windows.Media;
-using System.Windows.Interop;
+using inuMixer;
 using NAudio.CoreAudioApi;
 using NAudio.CoreAudioApi.Interfaces;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Linq;
+using System.Windows.Media;
 
 namespace inuMixer
 {
-    /// <summary>
-    /// 個々のアプリケーション（オーディオセッション）のデータと状態を表すモデルクラス。
-    /// 音量、ミュート、ピーク値、アイコンなどの情報を保持・管理します。
-    /// </summary>
     public class AudioSessionModel : INotifyPropertyChanged, IDisposable
     {
-        // CoreAudio API のセッションコントロール
-        private readonly AudioSessionControl _sessionControl;
-        // 音量メーター情報
-        private readonly AudioMeterInformation _meterInformation;
+        private readonly Dictionary<int, AudioSessionControl> _sessions = new Dictionary<int, AudioSessionControl>();
+        private AudioSessionControl _primarySession;
 
-        /// <summary>
-        /// コンストラクタ。CoreAudioセッションからモデルを生成します。
-        /// </summary>
-        public AudioSessionModel(AudioSessionControl session)
+        public AudioSessionModel(AudioSessionControl primarySession)
         {
-            _sessionControl = session;
-            _meterInformation = session.AudioMeterInformation;
-
-            // プロセス情報の初期化
-            ProcessId = (int)session.GetProcessID;
-            DisplayName = GetProcessName(ProcessId);
-            Icon = GetProcessIcon(ProcessId);
+            AddSession(primarySession);
         }
 
-        // ==========================================================
-        // プロパティ (UIバインディング用)
-        // ==========================================================
+        public void AddSession(AudioSessionControl session)
+        {
+            int pid = (int)session.GetProcessID;
+            if (!_sessions.ContainsKey(pid))
+            {
+                _sessions.Add(pid, session);
+                // イベント購読は廃止し、タイマー監視に移行済み
 
-        public int ProcessId { get; }
-        public string DisplayName { get; }
-        public ImageSource Icon { get; }
+                if (_primarySession == null)
+                {
+                    _primarySession = session;
+                    ProcessId = pid;
+                    // 【変更】強化された名前取得メソッドを使用
+                    DisplayName = GetFormattedDisplayName(pid);
+                    Icon = GetProcessIcon(pid);
+                }
+            }
+        }
 
-        /// <summary>
-        /// マスター音量 (0.0 - 1.0)。変更時はシステムに反映します。
-        /// </summary>
+        public void RemoveDeadSessions(HashSet<int> activePids)
+        {
+            var keysToRemove = _sessions.Keys.Where(pid => !activePids.Contains(pid)).ToList();
+            foreach (var pid in keysToRemove)
+            {
+                var session = _sessions[pid];
+                session.Dispose();
+                _sessions.Remove(pid);
+            }
+        }
+
+        public bool IsEmpty => _sessions.Count == 0;
+
+        public int ProcessId { get; private set; }
+        public string DisplayName { get; private set; }
+        public ImageSource Icon { get; private set; }
+
+        private float _lastVolume = -1;
+        private bool _lastMuteState = false;
+
         public float Volume
         {
-            get => _sessionControl.SimpleAudioVolume.Volume;
+            get => _primarySession?.SimpleAudioVolume.Volume ?? 0;
             set
             {
-                if (_sessionControl.SimpleAudioVolume.Volume != value)
+                foreach (var session in _sessions.Values)
                 {
-                    _sessionControl.SimpleAudioVolume.Volume = value;
+                    if (Math.Abs(session.SimpleAudioVolume.Volume - value) > 0.001f)
+                    {
+                        session.SimpleAudioVolume.Volume = value;
+                    }
+                }
+                if (Math.Abs(_lastVolume - value) > 0.001f)
+                {
+                    _lastVolume = value;
                     OnPropertyChanged(nameof(Volume));
                     OnPropertyChanged(nameof(VolumePercent));
                 }
             }
         }
 
-        /// <summary>
-        /// 音量のパーセント表示 (0 - 100)
-        /// </summary>
         public int VolumePercent => (int)(Volume * 100);
 
-        /// <summary>
-        /// ミュート状態。変更時はシステムに反映します。
-        /// </summary>
         public bool IsMuted
         {
-            get => _sessionControl.SimpleAudioVolume.Mute;
+            get => _primarySession?.SimpleAudioVolume.Mute ?? false;
             set
             {
-                if (_sessionControl.SimpleAudioVolume.Mute != value)
+                foreach (var session in _sessions.Values)
                 {
-                    _sessionControl.SimpleAudioVolume.Mute = value;
+                    if (session.SimpleAudioVolume.Mute != value)
+                    {
+                        session.SimpleAudioVolume.Mute = value;
+                    }
+                }
+                if (_lastMuteState != value)
+                {
+                    _lastMuteState = value;
                     OnPropertyChanged(nameof(IsMuted));
                 }
             }
         }
 
-        // 内部で使用するピーク値フィールド
         private float _peakValue;
-
-        /// <summary>
-        /// 現在の音量ピーク値 (0.0 - 1.0)。メーター表示用。
-        /// </summary>
         public float PeakValue
         {
             get => _peakValue;
@@ -98,63 +116,89 @@ namespace inuMixer
             }
         }
 
-        // ==========================================================
-        // メソッド
-        // ==========================================================
-
-        /// <summary>
-        /// 現在のピーク値を取得し、プロパティを更新します。
-        /// Timerから定期的に呼び出されます。
-        /// </summary>
-        public void UpdatePeakValue()
+        public void UpdateState()
         {
-            try
+            float maxPeak = 0f;
+            foreach (var session in _sessions.Values)
             {
-                PeakValue = _meterInformation.MasterPeakValue;
+                try
+                {
+                    float p = session.AudioMeterInformation.MasterPeakValue;
+                    if (p > maxPeak) maxPeak = p;
+                }
+                catch { }
             }
-            catch
+            PeakValue = maxPeak;
+
+            float currentVol = _primarySession?.SimpleAudioVolume.Volume ?? 0;
+            bool currentMute = _primarySession?.SimpleAudioVolume.Mute ?? false;
+
+            if (Math.Abs(_lastVolume - currentVol) > 0.001f)
             {
-                // セッションが切断されている場合などは無視
+                _lastVolume = currentVol;
+                OnPropertyChanged(nameof(Volume));
+                OnPropertyChanged(nameof(VolumePercent));
+            }
+
+            if (_lastMuteState != currentMute)
+            {
+                _lastMuteState = currentMute;
+                OnPropertyChanged(nameof(IsMuted));
             }
         }
 
+        // ==========================================================
+        // ★ NEW ★ 名前取得ロジックの強化
+        // ==========================================================
+
         /// <summary>
-        /// リソースを解放します。
+        /// プロセスIDから、タスクマネージャーに表示されるような「製品名/説明」を取得します。
+        /// (例: chrome.exe -> Google Chrome)
+        /// 他のクラスからも使えるように public static にしています。
         /// </summary>
-        public void Dispose()
-        {
-            // AudioSessionControl自体は明示的なDisposeが必要なケースは少ないが、
-            // 参照を外すなどのクリーンアップを行う場所として用意
-            // NAudioのオブジェクトはガベージコレクションに任せても概ね問題ない
-            _sessionControl?.Dispose();
-        }
-
-        // ==========================================================
-        // 内部ヘルパー (プロセス情報の取得)
-        // ==========================================================
-
-        private string GetProcessName(int pid)
+        public static string GetFormattedDisplayName(int pid)
         {
             try
             {
                 var process = Process.GetProcessById(pid);
+
+                // 1. まずはファイルの詳細情報（説明）の取得を試みる
+                try
+                {
+                    // MainModuleへのアクセスは権限が必要な場合があるためtryで囲む
+                    if (process.MainModule != null && process.MainModule.FileVersionInfo != null)
+                    {
+                        string description = process.MainModule.FileVersionInfo.FileDescription;
+                        if (!string.IsNullOrWhiteSpace(description))
+                        {
+                            return description;
+                        }
+                    }
+                }
+                catch { /* 権限不足などで取得できない場合は無視して次へ */ }
+
+                // 2. 説明が取れなかった場合は、従来のプロセス名を返す
                 return process.ProcessName;
             }
             catch
             {
-                return "不明なアプリ";
+                return "Unknown";
             }
         }
 
         private ImageSource GetProcessIcon(int pid)
         {
-            // IconHelperクラスを使用して強力にアイコンを取得
             return IconHelper.GetIconFromProcess(pid);
         }
 
-        // ==========================================================
-        // INotifyPropertyChanged 実装
-        // ==========================================================
+        public void Dispose()
+        {
+            foreach (var session in _sessions.Values)
+            {
+                session.Dispose();
+            }
+            _sessions.Clear();
+        }
 
         public event PropertyChangedEventHandler PropertyChanged;
         protected virtual void OnPropertyChanged(string propertyName)
