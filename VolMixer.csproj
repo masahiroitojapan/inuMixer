@@ -11,6 +11,8 @@
 
   <ItemGroup>
     <None Remove="Resources\mixer.ico" />
+    <None Remove="Resources\m_feeder.png" />
+    <None Remove="Resources\n_feeder.png" />
   </ItemGroup>
 
   <ItemGroup>
@@ -23,6 +25,8 @@
 
   <ItemGroup>
     <Resource Include="Resources\mixer.ico" />
+    <Resource Include="Resources\m_feeder.png" />
+    <Resource Include="Resources\n_feeder.png" />
   </ItemGroup>
 
   <ItemGroup>

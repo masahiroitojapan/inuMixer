@@ -55,7 +55,7 @@ namespace VolMixer
             catch { }
         }
 
-        // --- スマート更新ロジック (差分更新) ---
+        // --- 更新ロジック ---
         public void SyncSessions()
         {
             if (_sessionManager == null) return;
