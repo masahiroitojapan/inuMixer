@@ -1,4 +1,5 @@
 inuMixer
+https://github.com/masahiroitojapan/inuMixer/releases/download/v1.0.0/inuMixer.zip
 
 inuMixer は、Windowsでのオーディオ体験を快適にする、DAW風の縦型ボリュームミキサーです。
 「ゲーム中に裏で鳴っているDiscordやブラウザの音量を、サッと調整したい」という自身の個人的ニーズから生まれました。
