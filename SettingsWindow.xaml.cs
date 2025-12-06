@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 
-namespace VolMixer
+namespace inuMixer
 {
     public partial class SettingsWindow : Window
     {
@@ -22,7 +22,7 @@ namespace VolMixer
 
             // 設定読み込み
             string hiddenAppsStr = "";
-            try { hiddenAppsStr = global::VolMixer.Properties.Settings.Default.HiddenApps; } catch { }
+            try { hiddenAppsStr = global::inuMixer.Properties.Settings.Default.HiddenApps; } catch { }
 
             var hiddenApps = string.IsNullOrEmpty(hiddenAppsStr)
                 ? new HashSet<string>()
@@ -45,8 +45,8 @@ namespace VolMixer
 
             try
             {
-                global::VolMixer.Properties.Settings.Default.HiddenApps = saveStr;
-                global::VolMixer.Properties.Settings.Default.Save();
+                global::inuMixer.Properties.Settings.Default.HiddenApps = saveStr;
+                global::inuMixer.Properties.Settings.Default.Save();
             }
             catch { }
 

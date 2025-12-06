@@ -2,7 +2,7 @@
 using System.Data;
 using System.Windows;
 
-namespace VolMixer
+namespace inuMixer
 {
     /// <summary>
     /// Interaction logic for App.xaml

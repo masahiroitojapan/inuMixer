@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Windows.Input;
 
-namespace VolMixer
+namespace inuMixer
 {
     /// <summary>
     /// ICommandインターフェースの実装。ViewModelからViewのイベントを処理するために使用します。

@@ -7,6 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <ApplicationIcon>Resources\mixer.ico</ApplicationIcon>
+    <AssemblyName>inuMixer</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>

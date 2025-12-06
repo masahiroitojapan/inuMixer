@@ -6,7 +6,7 @@ using System.Windows.Interop;
 using NAudio.CoreAudioApi;
 using NAudio.CoreAudioApi.Interfaces;
 
-namespace VolMixer
+namespace inuMixer
 {
     /// <summary>
     /// 個々のアプリケーション（オーディオセッション）のデータと状態を表すモデルクラス。

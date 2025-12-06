@@ -5,7 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 
-namespace VolMixer
+namespace inuMixer
 {
     public partial class MainWindow : Window
     {
@@ -33,7 +33,7 @@ namespace VolMixer
         {
             try
             {
-                var settings = global::VolMixer.Properties.Settings.Default;
+                var settings = global::inuMixer.Properties.Settings.Default;
                 if (settings.WindowLeft > -1 && settings.WindowHeight > 0)
                 {
                     this.Left = settings.WindowLeft;
@@ -54,7 +54,7 @@ namespace VolMixer
 
             try
             {
-                var settings = global::VolMixer.Properties.Settings.Default;
+                var settings = global::inuMixer.Properties.Settings.Default;
                 settings.WindowLeft = this.Left;
                 settings.WindowTop = this.Top;
                 settings.WindowHeight = this.Height;

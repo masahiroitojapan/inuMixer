@@ -7,7 +7,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
-namespace VolMixer
+namespace inuMixer
 {
     /// <summary>
     /// Windows API (Shell32, Kernel32) を利用して、アプリケーションのアイコンを高精度に取得するヘルパークラス。

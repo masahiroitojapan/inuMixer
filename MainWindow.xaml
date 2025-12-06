@@ -1,8 +1,8 @@
-﻿<Window x:Class="VolMixer.MainWindow"
+﻿<Window x:Class="inuMixer.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:local="clr-namespace:VolMixer"
-        Title="VolMixer" Height="500" Width="800"
+        xmlns:local="clr-namespace:inuMixer"
+        Title="inuMixer" Height="500" Width="800"
         MinHeight="300" MinWidth="300"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent">
 
@@ -19,7 +19,7 @@
         <ControlTemplate x:Key="MasterThumbTemplate" TargetType="{x:Type Thumb}">
             <Grid>
                 <!-- 画像パスを完全修飾パックURIに変更し、レンダリング品質を高めるオプションを追加 -->
-                <Image Source="pack://application:,,,/VolMixer;component/Resources/m_feeder.png" 
+                <Image Source="pack://application:,,,/inuMixer;component/Resources/m_feeder.png" 
                        Stretch="Uniform"
                        RenderOptions.BitmapScalingMode="HighQuality"/>
             </Grid>
@@ -29,7 +29,7 @@
         <ControlTemplate x:Key="NormalThumbTemplate" TargetType="{x:Type Thumb}">
             <Grid>
                 <!-- 画像パスを完全修飾パックURIに変更 -->
-                <Image Source="pack://application:,,,/VolMixer;component/Resources/n_feeder.png" 
+                <Image Source="pack://application:,,,/inuMixer;component/Resources/n_feeder.png" 
                        Stretch="Uniform"
                        RenderOptions.BitmapScalingMode="HighQuality"/>
             </Grid>

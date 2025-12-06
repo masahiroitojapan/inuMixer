@@ -7,7 +7,7 @@ using System.Collections.Generic;
 using NAudio.CoreAudioApi;
 using NAudio.CoreAudioApi.Interfaces;
 
-namespace VolMixer
+namespace inuMixer
 {
     public class MixerViewModel : INotifyPropertyChanged, IDisposable
     {
@@ -64,7 +64,7 @@ namespace VolMixer
 
             // ê›íËÇ©ÇÁîÒï\é¶ÉäÉXÉgì«Ç›çûÇ›
             string hiddenAppsStr = "";
-            try { hiddenAppsStr = global::VolMixer.Properties.Settings.Default.HiddenApps; } catch { }
+            try { hiddenAppsStr = global::inuMixer.Properties.Settings.Default.HiddenApps; } catch { }
 
             var hiddenApps = string.IsNullOrEmpty(hiddenAppsStr)
                 ? new HashSet<string>()
@@ -124,8 +124,8 @@ namespace VolMixer
             {
                 var orderList = AudioSessions.Select(x => x.DisplayName).ToList();
                 string orderString = string.Join(",", orderList);
-                global::VolMixer.Properties.Settings.Default.AppOrder = orderString;
-                global::VolMixer.Properties.Settings.Default.Save();
+                global::inuMixer.Properties.Settings.Default.AppOrder = orderString;
+                global::inuMixer.Properties.Settings.Default.Save();
             }
             catch { }
         }
@@ -134,7 +134,7 @@ namespace VolMixer
         {
             try
             {
-                string orderString = global::VolMixer.Properties.Settings.Default.AppOrder;
+                string orderString = global::inuMixer.Properties.Settings.Default.AppOrder;
                 if (string.IsNullOrEmpty(orderString)) return;
 
                 var orderList = orderString.Split(',').ToList();
