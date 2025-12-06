@@ -1,7 +1,8 @@
 ﻿using System;
-using System.Collections.Generic; // List<string>のために必要
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 
@@ -10,6 +11,12 @@ namespace inuMixer
     public partial class MainWindow : Window
     {
         private MixerViewModel _viewModel;
+
+        // ドラッグ操作用フィールド
+        private Point _dragStartPoint;
+        private bool _isDragging = false;
+        private Border _draggedItemContainer;
+        private AudioSessionModel _draggedData;
 
         public MainWindow()
         {
@@ -22,7 +29,7 @@ namespace inuMixer
             this.Closed += MainWindow_Closed;
             this.MouseDown += MainWindow_MouseDown;
 
-            // 【重要】ウィンドウ全体でドラッグ終了を監視 (スタック防止)
+            // ウィンドウ全体でドラッグ終了を監視 (スタック防止)
             this.PreviewMouseLeftButtonUp += MainWindow_PreviewMouseLeftButtonUp;
 
             // 起動完了時に並び順を復元
@@ -41,6 +48,7 @@ namespace inuMixer
                     this.Height = settings.WindowHeight;
                 }
                 this.Topmost = settings.IsAlwaysOnTop;
+
                 if (settings.WindowOpacity < 0.2) settings.WindowOpacity = 1.0;
                 this.Opacity = settings.WindowOpacity;
             }
@@ -69,38 +77,39 @@ namespace inuMixer
         {
             if (e.ChangedButton == MouseButton.Left && !IsControlUnderMouse(e.OriginalSource as DependencyObject))
             {
-                try { this.DragMove(); } catch { }
+                try
+                {
+                    this.DragMove();
+                }
+                catch { }
             }
         }
 
-        private void MinimizeButton_Click(object sender, RoutedEventArgs e) { this.WindowState = WindowState.Minimized; }
-        private void CloseButton_Click(object sender, RoutedEventArgs e) { this.Close(); }
+        private void MinimizeButton_Click(object sender, RoutedEventArgs e)
+        {
+            this.WindowState = WindowState.Minimized;
+        }
 
-        // 【追加】設定ボタン処理
+        private void CloseButton_Click(object sender, RoutedEventArgs e)
+        {
+            this.Close();
+        }
+
         private void SettingsButton_Click(object sender, RoutedEventArgs e)
         {
-            // 現在アクティブなアプリ名リストを取得
             var currentApps = _viewModel.GetActiveAppNames();
+            var settingsWindow = new SettingsWindow(currentApps)
+            {
+                Owner = this
+            };
 
-            // 設定ウィンドウを作成して表示
-            // ※ SettingsWindowクラスが別途定義されている必要があります
-            var settingsWindow = new SettingsWindow(currentApps);
-            settingsWindow.Owner = this;
-
-            // ダイアログとして表示し、保存されたらリストを更新
             if (settingsWindow.ShowDialog() == true)
             {
                 _viewModel.SyncSessions();
             }
         }
 
-        // ---------------------------------------------------------
-        // ドラッグ＆ドロップ (完全修正版)
-        // ---------------------------------------------------------
-        private Point _dragStartPoint;
-        private bool _isDragging = false;
-        private Border _draggedItemContainer;
-        private AudioSessionModel _draggedData;
+        #region Drag and Drop Logic
 
         private void AppFader_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
@@ -122,46 +131,56 @@ namespace inuMixer
                 Point currentPoint = e.GetPosition(null);
                 Vector diff = _dragStartPoint - currentPoint;
 
+                // ドラッグ開始判定
                 if (!_isDragging && (Math.Abs(diff.X) > SystemParameters.MinimumHorizontalDragDistance || Math.Abs(diff.Y) > SystemParameters.MinimumVerticalDragDistance))
                 {
                     _isDragging = true;
                     _draggedItemContainer.Opacity = 0.5;
-                    _draggedItemContainer.CaptureMouse(); // マウスキャプチャ
+                    _draggedItemContainer.CaptureMouse();
                 }
 
                 if (_isDragging)
                 {
-                    // リスト内の入れ替えロジック
-                    ItemsControl itemsControl = FindAncestor<ItemsControl>(_draggedItemContainer);
-                    if (itemsControl != null)
+                    PerformDragReorder(e);
+                }
+            }
+        }
+
+        private void PerformDragReorder(MouseEventArgs e)
+        {
+            ItemsControl itemsControl = FindAncestor<ItemsControl>(_draggedItemContainer);
+            if (itemsControl != null)
+            {
+                Point mouseInList = e.GetPosition(itemsControl);
+                foreach (var item in _viewModel.AudioSessions)
+                {
+                    if (item == _draggedData) continue;
+
+                    var container = itemsControl.ItemContainerGenerator.ContainerFromItem(item) as FrameworkElement;
+                    if (container == null) continue;
+
+                    Point relativePoint = container.TranslatePoint(new Point(0, 0), itemsControl);
+                    Rect bounds = new Rect(relativePoint, new Size(container.ActualWidth, container.ActualHeight));
+
+                    if (bounds.Contains(mouseInList))
                     {
-                        Point mouseInList = e.GetPosition(itemsControl);
-                        foreach (var item in _viewModel.AudioSessions)
+                        int oldIndex = _viewModel.AudioSessions.IndexOf(_draggedData);
+                        int newIndex = _viewModel.AudioSessions.IndexOf(item);
+                        if (oldIndex != -1 && newIndex != -1)
                         {
-                            if (item == _draggedData) continue;
-                            var container = itemsControl.ItemContainerGenerator.ContainerFromItem(item) as FrameworkElement;
-                            if (container == null) continue;
-
-                            Point relativePoint = container.TranslatePoint(new Point(0, 0), itemsControl);
-                            Rect bounds = new Rect(relativePoint, new Size(container.ActualWidth, container.ActualHeight));
-
-                            if (bounds.Contains(mouseInList))
-                            {
-                                int oldIndex = _viewModel.AudioSessions.IndexOf(_draggedData);
-                                int newIndex = _viewModel.AudioSessions.IndexOf(item);
-                                if (oldIndex != -1 && newIndex != -1) _viewModel.AudioSessions.Move(oldIndex, newIndex);
-                                break;
-                            }
+                            _viewModel.AudioSessions.Move(oldIndex, newIndex);
                         }
+                        break;
                     }
                 }
             }
         }
 
-        // 個別の終了イベント
-        private void AppFader_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e) { EndDrag(); }
+        private void AppFader_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            EndDrag();
+        }
 
-        // 【重要】ウィンドウ全体での終了監視
         private void MainWindow_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
             if (_isDragging) EndDrag();
@@ -172,12 +191,16 @@ namespace inuMixer
             if (_isDragging && _draggedItemContainer != null)
             {
                 _draggedItemContainer.Opacity = 1.0;
-                _draggedItemContainer.ReleaseMouseCapture(); // キャプチャ解除
+                _draggedItemContainer.ReleaseMouseCapture();
                 _isDragging = false;
             }
             _draggedItemContainer = null;
             _draggedData = null;
         }
+
+        #endregion
+
+        #region Helpers & UI Events
 
         private bool IsControlUnderMouse(DependencyObject originalSource)
         {
@@ -185,7 +208,7 @@ namespace inuMixer
             while (current != null)
             {
                 if (current == _draggedItemContainer) return false;
-                if (current is Slider || current is System.Windows.Controls.Primitives.ToggleButton || current is Button || current is System.Windows.Controls.Primitives.Thumb) return true;
+                if (current is Slider || current is ToggleButton || current is Button || current is Thumb) return true;
                 current = VisualTreeHelper.GetParent(current);
             }
             return false;
@@ -201,11 +224,56 @@ namespace inuMixer
             return null;
         }
 
-        // --- その他イベント (変更なし) ---
-        private void OpacitySlider_PreviewMouseWheel(object sender, MouseWheelEventArgs e) { if (sender is Slider s) { double c = 0.02; if (e.Delta > 0) s.Value = Math.Min(s.Maximum, s.Value + c); else s.Value = Math.Max(s.Minimum, s.Value - c); e.Handled = true; } }
-        private void Border_PreviewMouseWheel(object sender, MouseWheelEventArgs e) { if (_isDragging) return; if (sender is Border b && b.DataContext is AudioSessionModel s) { float c = 0.05f; if (e.Delta > 0) s.Volume = Math.Min(1.0f, s.Volume + c); else s.Volume = Math.Max(0.0f, s.Volume - c); e.Handled = true; } }
-        private void Border_MouseDown(object sender, MouseButtonEventArgs e) { if (e.ChangedButton == MouseButton.Middle && sender is Border b && b.DataContext is AudioSessionModel s) s.IsMuted = !s.IsMuted; }
-        private void MasterFader_PreviewMouseWheel(object sender, MouseWheelEventArgs e) { if (sender is Border && DataContext is MixerViewModel vm) { float c = 0.05f; if (e.Delta > 0) vm.MasterVolume = Math.Min(1.0f, vm.MasterVolume + c); else vm.MasterVolume = Math.Max(0.0f, vm.MasterVolume - c); e.Handled = true; } }
-        private void MasterFader_MouseDown(object sender, MouseButtonEventArgs e) { if (e.ChangedButton == MouseButton.Middle && DataContext is MixerViewModel vm) vm.MasterIsMuted = !vm.MasterIsMuted; }
+        private void OpacitySlider_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (sender is Slider s)
+            {
+                double c = 0.02;
+                if (e.Delta > 0) s.Value = Math.Min(s.Maximum, s.Value + c);
+                else s.Value = Math.Max(s.Minimum, s.Value - c);
+                e.Handled = true;
+            }
+        }
+
+        private void Border_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (_isDragging) return;
+            if (sender is Border b && b.DataContext is AudioSessionModel s)
+            {
+                float c = 0.05f;
+                if (e.Delta > 0) s.Volume = Math.Min(1.0f, s.Volume + c);
+                else s.Volume = Math.Max(0.0f, s.Volume - c);
+                e.Handled = true;
+            }
+        }
+
+        private void Border_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton == MouseButton.Middle && sender is Border b && b.DataContext is AudioSessionModel s)
+            {
+                s.IsMuted = !s.IsMuted;
+            }
+        }
+
+        private void MasterFader_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (sender is Border && DataContext is MixerViewModel vm)
+            {
+                float c = 0.05f;
+                if (e.Delta > 0) vm.MasterVolume = Math.Min(1.0f, vm.MasterVolume + c);
+                else vm.MasterVolume = Math.Max(0.0f, vm.MasterVolume - c);
+                e.Handled = true;
+            }
+        }
+
+        private void MasterFader_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton == MouseButton.Middle && DataContext is MixerViewModel vm)
+            {
+                vm.MasterIsMuted = !vm.MasterIsMuted;
+            }
+        }
+
+        #endregion
     }
 }

@@ -1,4 +1,3 @@
-using inuMixer;
 using NAudio.CoreAudioApi;
 using NAudio.CoreAudioApi.Interfaces;
 using System;
@@ -15,6 +14,16 @@ namespace inuMixer
         private readonly Dictionary<int, AudioSessionControl> _sessions = new Dictionary<int, AudioSessionControl>();
         private AudioSessionControl _primarySession;
 
+        // 状態管理用フィールド
+        private float _lastVolume = -1;
+        private bool _lastMuteState = false;
+        private float _peakValue;
+
+        public int ProcessId { get; private set; }
+        public string DisplayName { get; private set; }
+        public ImageSource Icon { get; private set; }
+        public bool IsEmpty => _sessions.Count == 0;
+
         public AudioSessionModel(AudioSessionControl primarySession)
         {
             AddSession(primarySession);
@@ -26,13 +35,11 @@ namespace inuMixer
             if (!_sessions.ContainsKey(pid))
             {
                 _sessions.Add(pid, session);
-                // イベント購読は廃止し、タイマー監視に移行済み
 
                 if (_primarySession == null)
                 {
                     _primarySession = session;
                     ProcessId = pid;
-                    // 【変更】強化された名前取得メソッドを使用
                     DisplayName = GetFormattedDisplayName(pid);
                     Icon = GetProcessIcon(pid);
                 }
@@ -50,15 +57,6 @@ namespace inuMixer
             }
         }
 
-        public bool IsEmpty => _sessions.Count == 0;
-
-        public int ProcessId { get; private set; }
-        public string DisplayName { get; private set; }
-        public ImageSource Icon { get; private set; }
-
-        private float _lastVolume = -1;
-        private bool _lastMuteState = false;
-
         public float Volume
         {
             get => _primarySession?.SimpleAudioVolume.Volume ?? 0;
@@ -66,6 +64,7 @@ namespace inuMixer
             {
                 foreach (var session in _sessions.Values)
                 {
+                    // 浮動小数点の比較誤差を考慮
                     if (Math.Abs(session.SimpleAudioVolume.Volume - value) > 0.001f)
                     {
                         session.SimpleAudioVolume.Volume = value;
@@ -102,7 +101,6 @@ namespace inuMixer
             }
         }
 
-        private float _peakValue;
         public float PeakValue
         {
             get => _peakValue;
@@ -126,7 +124,7 @@ namespace inuMixer
                     float p = session.AudioMeterInformation.MasterPeakValue;
                     if (p > maxPeak) maxPeak = p;
                 }
-                catch { }
+                catch { /* AudioMeter情報の取得失敗は無視 */ }
             }
             PeakValue = maxPeak;
 
@@ -147,14 +145,8 @@ namespace inuMixer
             }
         }
 
-        // ==========================================================
-        // ★ NEW ★ 名前取得ロジックの強化
-        // ==========================================================
-
         /// <summary>
-        /// プロセスIDから、タスクマネージャーに表示されるような「製品名/説明」を取得します。
-        /// (例: chrome.exe -> Google Chrome)
-        /// 他のクラスからも使えるように public static にしています。
+        /// プロセスIDから「製品名/説明」を取得 (例: chrome.exe -> Google Chrome)
         /// </summary>
         public static string GetFormattedDisplayName(int pid)
         {
@@ -162,11 +154,10 @@ namespace inuMixer
             {
                 var process = Process.GetProcessById(pid);
 
-                // 1. まずはファイルの詳細情報（説明）の取得を試みる
+                // MainModuleへのアクセスは権限が必要な場合があるためtryで囲む
                 try
                 {
-                    // MainModuleへのアクセスは権限が必要な場合があるためtryで囲む
-                    if (process.MainModule != null && process.MainModule.FileVersionInfo != null)
+                    if (process.MainModule?.FileVersionInfo != null)
                     {
                         string description = process.MainModule.FileVersionInfo.FileDescription;
                         if (!string.IsNullOrWhiteSpace(description))
@@ -175,9 +166,8 @@ namespace inuMixer
                         }
                     }
                 }
-                catch { /* 権限不足などで取得できない場合は無視して次へ */ }
+                catch { /* 権限不足時は無視 */ }
 
-                // 2. 説明が取れなかった場合は、従来のプロセス名を返す
                 return process.ProcessName;
             }
             catch

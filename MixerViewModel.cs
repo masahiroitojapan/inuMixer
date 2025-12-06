@@ -1,4 +1,3 @@
-using inuMixer;
 using NAudio.CoreAudioApi;
 using NAudio.CoreAudioApi.Interfaces;
 using System;
@@ -13,34 +12,84 @@ namespace inuMixer
 {
     public class MixerViewModel : INotifyPropertyChanged, IDisposable
     {
-        public ObservableCollection<AudioSessionModel> AudioSessions { get; set; } = new ObservableCollection<AudioSessionModel>();
+        // 検索効率のためHashSetに変更
+        private static readonly HashSet<string> ExcludedNames = new HashSet<string>
+        {
+            "System Sounds",
+            "System Idle Process"
+        };
 
-        private static readonly string[] ExcludedNames = { "System Sounds", "System Idle Process" };
         private MMDevice _device;
         private AudioSessionManager _sessionManager;
-
         private DispatcherTimer _peakMeterTimer;
         private DispatcherTimer _autoRefreshTimer;
 
+        // コレクション
+        public ObservableCollection<AudioSessionModel> AudioSessions { get; set; } = new ObservableCollection<AudioSessionModel>();
+
         public ICommand RefreshCommand { get; private set; }
+
+        // マスタボリューム関連フィールド
+        private float _masterPeakValue;
 
         public MixerViewModel()
         {
             InitializeAudioSessions();
             SetupPeakMeterTimer();
 
-            _autoRefreshTimer = new DispatcherTimer();
-            _autoRefreshTimer.Interval = TimeSpan.FromSeconds(3);
+            _autoRefreshTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(3)
+            };
             _autoRefreshTimer.Tick += (s, e) => SyncSessions();
             _autoRefreshTimer.Start();
         }
 
-        // ... (MasterVolume関連は変更なし) ...
-        public float MasterVolume { get => _device?.AudioEndpointVolume?.MasterVolumeLevelScalar ?? 0.0f; set { if (_device?.AudioEndpointVolume != null) { _device.AudioEndpointVolume.MasterVolumeLevelScalar = value; OnPropertyChanged(nameof(MasterVolume)); OnPropertyChanged(nameof(MasterVolumePercent)); } } }
+        #region Master Volume Properties
+
+        public float MasterVolume
+        {
+            get => _device?.AudioEndpointVolume?.MasterVolumeLevelScalar ?? 0.0f;
+            set
+            {
+                if (_device?.AudioEndpointVolume != null)
+                {
+                    _device.AudioEndpointVolume.MasterVolumeLevelScalar = value;
+                    OnPropertyChanged(nameof(MasterVolume));
+                    OnPropertyChanged(nameof(MasterVolumePercent));
+                }
+            }
+        }
+
         public int MasterVolumePercent => (int)(MasterVolume * 100);
-        public bool MasterIsMuted { get => _device?.AudioEndpointVolume?.Mute ?? false; set { if (_device?.AudioEndpointVolume != null) { _device.AudioEndpointVolume.Mute = value; OnPropertyChanged(nameof(MasterIsMuted)); } } }
-        private float _masterPeakValue;
-        public float MasterPeakValue { get => _masterPeakValue; private set { if (_masterPeakValue != value) { _masterPeakValue = value; OnPropertyChanged(nameof(MasterPeakValue)); } } }
+
+        public bool MasterIsMuted
+        {
+            get => _device?.AudioEndpointVolume?.Mute ?? false;
+            set
+            {
+                if (_device?.AudioEndpointVolume != null)
+                {
+                    _device.AudioEndpointVolume.Mute = value;
+                    OnPropertyChanged(nameof(MasterIsMuted));
+                }
+            }
+        }
+
+        public float MasterPeakValue
+        {
+            get => _masterPeakValue;
+            private set
+            {
+                if (_masterPeakValue != value)
+                {
+                    _masterPeakValue = value;
+                    OnPropertyChanged(nameof(MasterPeakValue));
+                }
+            }
+        }
+
+        #endregion
 
         private void InitializeAudioSessions()
         {
@@ -55,7 +104,10 @@ namespace inuMixer
 
                 SyncSessions();
             }
-            catch { }
+            catch (Exception)
+            {
+                // デバイスが見つからない等の初期化エラー対応
+            }
         }
 
         public void SyncSessions()
@@ -70,11 +122,9 @@ namespace inuMixer
                 : new HashSet<string>(hiddenAppsStr.Split(','));
 
             var activePids = new HashSet<int>();
-
-            // プロセス名ごとにセッションを一時保管
-            // 【変更】Tupleの第一引数を「表示名(Google Chrome)」に変更
             var pendingSessions = new List<(string DisplayName, AudioSessionControl Session)>();
 
+            // アクティブなセッションを収集
             for (int i = 0; i < _sessionManager.Sessions.Count; i++)
             {
                 var session = _sessionManager.Sessions[i];
@@ -83,15 +133,12 @@ namespace inuMixer
                 if (pid > 0 && (session.State == AudioSessionState.AudioSessionStateActive || session.State == AudioSessionState.AudioSessionStateInactive))
                 {
                     activePids.Add(pid);
-
-                    // 【変更】AudioSessionModelの静的メソッドを使って「正式名称」を取得する
                     string displayName = AudioSessionModel.GetFormattedDisplayName(pid);
-
                     pendingSessions.Add((displayName, session));
                 }
             }
 
-            // 削除フェーズ
+            // 削除フェーズ: 終了したプロセスや非表示設定されたアプリを除去
             for (int i = AudioSessions.Count - 1; i >= 0; i--)
             {
                 var model = AudioSessions[i];
@@ -112,7 +159,6 @@ namespace inuMixer
 
                 if (ExcludedNames.Contains(displayName) || hiddenApps.Contains(displayName)) continue;
 
-                // 【変更】正式名称(DisplayName)で既存モデルを探す
                 var existingModel = AudioSessions.FirstOrDefault(m => m.DisplayName == displayName);
 
                 if (existingModel != null)
@@ -121,7 +167,6 @@ namespace inuMixer
                 }
                 else
                 {
-                    // 新規作成時も内部で GetFormattedDisplayName が呼ばれるので名前は一致する
                     var newModel = new AudioSessionModel(session);
                     if (!string.IsNullOrWhiteSpace(newModel.DisplayName) && !hiddenApps.Contains(newModel.DisplayName))
                     {
@@ -136,8 +181,7 @@ namespace inuMixer
             try
             {
                 var orderList = AudioSessions.Select(x => x.DisplayName).ToList();
-                string orderString = string.Join(",", orderList);
-                global::inuMixer.Properties.Settings.Default.AppOrder = orderString;
+                global::inuMixer.Properties.Settings.Default.AppOrder = string.Join(",", orderList);
                 global::inuMixer.Properties.Settings.Default.Save();
             }
             catch { }
@@ -149,34 +193,41 @@ namespace inuMixer
             {
                 string orderString = global::inuMixer.Properties.Settings.Default.AppOrder;
                 if (string.IsNullOrEmpty(orderString)) return;
+
                 var orderList = orderString.Split(',').ToList();
+
+                // 表示順の並び替えロジック
                 var sortedItems = AudioSessions.OrderBy(x =>
                 {
                     int index = orderList.IndexOf(x.DisplayName);
                     return index == -1 ? 999 : index;
                 }).ToList();
+
                 for (int i = 0; i < sortedItems.Count; i++)
                 {
                     int oldIndex = AudioSessions.IndexOf(sortedItems[i]);
-                    if (oldIndex != i) AudioSessions.Move(oldIndex, i);
+                    if (oldIndex != i)
+                    {
+                        AudioSessions.Move(oldIndex, i);
+                    }
                 }
             }
             catch { }
         }
 
-        // 設定画面用のアクティブアプリ一覧取得
         public List<string> GetActiveAppNames()
         {
             if (_sessionManager == null) return new List<string>();
+
             _sessionManager.RefreshSessions();
             var names = new HashSet<string>();
+
             for (int i = 0; i < _sessionManager.Sessions.Count; i++)
             {
                 var session = _sessionManager.Sessions[i];
                 int pid = (int)session.GetProcessID;
                 if (pid > 0)
                 {
-                    // 【変更】ここでも正式名称を使うように修正
                     names.Add(AudioSessionModel.GetFormattedDisplayName(pid));
                 }
             }
@@ -185,27 +236,48 @@ namespace inuMixer
 
         private void SetupPeakMeterTimer()
         {
-            _peakMeterTimer = new DispatcherTimer();
-            _peakMeterTimer.Interval = TimeSpan.FromMilliseconds(16);
+            _peakMeterTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(16)
+            };
             _peakMeterTimer.Tick += PeakMeterTimer_Tick;
             _peakMeterTimer.Start();
         }
 
         private void PeakMeterTimer_Tick(object sender, EventArgs e)
         {
-            foreach (var session in AudioSessions) session.UpdateState(); // UpdateStateに変更済み
-            if (_device != null) { try { MasterPeakValue = _device.AudioMeterInformation.MasterPeakValue; } catch { } }
+            foreach (var session in AudioSessions)
+            {
+                session.UpdateState();
+            }
+
+            if (_device != null)
+            {
+                try
+                {
+                    MasterPeakValue = _device.AudioMeterInformation.MasterPeakValue;
+                }
+                catch { }
+            }
         }
 
         public void Dispose()
         {
             _peakMeterTimer?.Stop();
             _autoRefreshTimer?.Stop();
-            foreach (var session in AudioSessions) session.Dispose();
-            if (_device != null) _device.Dispose();
+
+            foreach (var session in AudioSessions)
+            {
+                session.Dispose();
+            }
+
+            _device?.Dispose();
         }
 
         public event PropertyChangedEventHandler PropertyChanged;
-        protected virtual void OnPropertyChanged(string propertyName) { PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName)); }
+        protected virtual void OnPropertyChanged(string propertyName)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
     }
 }
