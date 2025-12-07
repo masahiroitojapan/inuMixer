@@ -187,7 +187,7 @@
                         <Button Content="⚙" Click="SettingsButton_Click"
                                 Width="30" Height="25" Margin="0,0,5,0"
                                 Background="#505050" Foreground="White" BorderBrush="#808080" 
-                                FontFamily="Segoe UI Symbol" ToolTip="表示アプリの設定"/>
+                                FontFamily="Segoe UI Symbol" FontSize="22" Padding="0,-4,0,0" ToolTip="表示アプリの設定"/>
 
                         <Button Content="＿" Click="MinimizeButton_Click" Width="30" Height="25" Margin="0,0,5,0"
                                 Background="#505050" Foreground="White" BorderBrush="#808080" ToolTip="最小化"/>

@@ -126,7 +126,16 @@ namespace inuMixer
                 }
                 catch { /* AudioMeter情報の取得失敗は無視 */ }
             }
-            PeakValue = maxPeak;
+
+            // ポストフェーダー（OUT音量）として計算：生ピーク値 × フェーダー位置
+            if (IsMuted)
+            {
+                PeakValue = 0f;
+            }
+            else
+            {
+                PeakValue = maxPeak * Volume;
+            }
 
             float currentVol = _primarySession?.SimpleAudioVolume.Volume ?? 0;
             bool currentMute = _primarySession?.SimpleAudioVolume.Mute ?? false;

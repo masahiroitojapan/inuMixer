@@ -255,7 +255,15 @@ namespace inuMixer
             {
                 try
                 {
-                    MasterPeakValue = _device.AudioMeterInformation.MasterPeakValue;
+                    if (MasterIsMuted)
+                    {
+                        MasterPeakValue = 0f;
+                    }
+                    else
+                    {
+                        // ポストフェーダー（OUT音量）として計算：生ピーク値 × フェーダー位置
+                        MasterPeakValue = _device.AudioMeterInformation.MasterPeakValue * MasterVolume;
+                    }
                 }
                 catch { }
             }
