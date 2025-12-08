@@ -27,9 +27,13 @@ inuMixer は、Windowsでのオーディオ体験を快適にする、DAW風の�
 - 設定: 右上の ⚙️ アイコンから、表示・非表示にするアプリを選択できます。
 
 ### 🛠️ 動作環境
+- Windows 10 / 11
+- ![.NET 8.0 Runtime](https://dotnet.microsoft.com/ja-jp/download/dotnet/8.0)
+- Mark Heath's
+  - [NAudio](https://github.com/naudio/NAudio)
 
-Windows 10 / 11
-
-.NET 8.0 Runtime
+### ⚖️ License
+inuMixer itself, is a MIT License software.<br>
+Use of each DLL(library) must be in accordance with the respective license.
 
 Created by itofromjapan
