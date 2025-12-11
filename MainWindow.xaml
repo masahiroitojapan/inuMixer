@@ -116,6 +116,16 @@
                     MouseDown="Border_MouseDown" 
                     Cursor="Hand"
                     ToolTip="ドラッグ: 移動 / スクロール: 音量調整 / 中クリック: ミュート">
+                    <!-- ミュート押下時グレーアウト-->
+                    <Border.Style>
+                            <Style TargetType="{x:Type Border}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsMuted}" Value="True">
+                                        <Setter Property="Opacity" Value="0.4"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                    </Border.Style>
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -204,6 +214,16 @@
                                 PreviewMouseWheel="MasterFader_PreviewMouseWheel" 
                                 MouseDown="MasterFader_MouseDown"
                                 ToolTip="システム全体のマスター音量">
+                            <!-- ミュート押下時グレーアウト-->
+                            <Border.Style>
+                                <Style TargetType="{x:Type Border}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding MasterIsMuted}" Value="True">
+                                            <Setter Property="Opacity" Value="0.4"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>

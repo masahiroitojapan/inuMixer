@@ -255,14 +255,16 @@ namespace inuMixer
             {
                 try
                 {
-                    if (MasterIsMuted)
+                    float masterMaxPeak = _device.AudioMeterInformation.MasterPeakValue;
+
+                    if (MasterVolume < 0.01f)
                     {
                         MasterPeakValue = 0f;
                     }
-                    else
+                    else  // ミュート時: ボリュームの影響を受けず、生ピーク値のみ表示
                     {
-                        // ポストフェーダー（OUT音量）として計算：生ピーク値 × フェーダー位置
-                        MasterPeakValue = _device.AudioMeterInformation.MasterPeakValue * MasterVolume;
+                        // システム全体がミュートでも、音源の存在を示す
+                        MasterPeakValue = masterMaxPeak * MasterVolume;
                     }
                 }
                 catch { }
