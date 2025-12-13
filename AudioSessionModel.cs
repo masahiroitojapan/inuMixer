@@ -127,15 +127,14 @@ namespace inuMixer
                 catch { /* AudioMeter情報の取得失敗は無視 */ }
             }
 
-            // ミュート状態 (IsMuted) のチェックを外し、常に生ピーク値 * ボリュームで計算する。
-            // ただし、ボリュームがゼロに近い場合は、念のためゼロにする。
-            if (Volume < 0.01f) // ボリュームがほぼゼロの場合
+            // ミュートされている場合、またはボリュームがほぼゼロの場合はピークをゼロにする
+            if (IsMuted || Volume < 0.01f)
             {
                 PeakValue = 0f;
             }
-            else // ミュート時: ボリュームの影響を受けず、生ピーク値のみ表示
+            else
             {
-                // 音は鳴らないが、アプリが音源を出力していることを示すために生ピーク値をそのまま表示
+                // ミュートされていない場合、生ピーク値にボリュームを乗算し、実際に聞こえる音量レベルを反映
                 PeakValue = maxPeak * Volume;
             }
 
@@ -165,23 +164,19 @@ namespace inuMixer
             {
                 var process = Process.GetProcessById(pid);
 
-                // MainModuleへのアクセスは権限が必要な場合があるためtryで囲む
-                try
+                // MainModuleへのアクセスは権限が必要な場合があるため、ここでtry-catchを行う
+                if (process.MainModule?.FileVersionInfo != null)
                 {
-                    if (process.MainModule?.FileVersionInfo != null)
+                    string description = process.MainModule.FileVersionInfo.FileDescription;
+                    if (!string.IsNullOrWhiteSpace(description))
                     {
-                        string description = process.MainModule.FileVersionInfo.FileDescription;
-                        if (!string.IsNullOrWhiteSpace(description))
-                        {
-                            return description;
-                        }
+                        return description;
                     }
                 }
-                catch { /* 権限不足時は無視 */ }
 
                 return process.ProcessName;
             }
-            catch
+            catch // Process.GetProcessById または MainModule へのアクセス失敗
             {
                 return "Unknown";
             }

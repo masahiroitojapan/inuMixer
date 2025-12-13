@@ -180,8 +180,9 @@ namespace inuMixer
         {
             try
             {
-                var orderList = AudioSessions.Select(x => x.DisplayName).ToList();
-                global::inuMixer.Properties.Settings.Default.AppOrder = string.Join(",", orderList);
+                // LINQの結果を直接格納
+                global::inuMixer.Properties.Settings.Default.AppOrder =
+                    string.Join(",", AudioSessions.Select(x => x.DisplayName));
                 global::inuMixer.Properties.Settings.Default.Save();
             }
             catch { }
@@ -257,13 +258,14 @@ namespace inuMixer
                 {
                     float masterMaxPeak = _device.AudioMeterInformation.MasterPeakValue;
 
-                    if (MasterVolume < 0.01f)
+                    // マスターミュート時、またはボリュームがほぼゼロの場合はピークをゼロにする
+                    if (MasterIsMuted || MasterVolume < 0.01f)
                     {
                         MasterPeakValue = 0f;
                     }
-                    else  // ミュート時: ボリュームの影響を受けず、生ピーク値のみ表示
+                    else
                     {
-                        // システム全体がミュートでも、音源の存在を示す
+                        // ボリュームを乗算し、実際に聞こえる音量レベルを反映させる
                         MasterPeakValue = masterMaxPeak * MasterVolume;
                     }
                 }

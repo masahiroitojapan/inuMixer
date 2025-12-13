@@ -137,6 +137,8 @@ namespace inuMixer
                     _isDragging = true;
                     _draggedItemContainer.Opacity = 0.5;
                     _draggedItemContainer.CaptureMouse();
+                    //  カーソルを並び替え用アイコンに変更
+                    Mouse.OverrideCursor = Cursors.SizeAll;
                 }
 
                 if (_isDragging)
@@ -190,9 +192,13 @@ namespace inuMixer
         {
             if (_isDragging && _draggedItemContainer != null)
             {
-                _draggedItemContainer.Opacity = 1.0;
+                // Opacityのローカル値をクリアし、XAMLのスタイル/トリガーに制御を戻す
+                _draggedItemContainer.ClearValue(Border.OpacityProperty);
+
                 _draggedItemContainer.ReleaseMouseCapture();
                 _isDragging = false;
+                //  カーソルをデフォルトに戻す
+                Mouse.OverrideCursor = null;
             }
             _draggedItemContainer = null;
             _draggedData = null;
