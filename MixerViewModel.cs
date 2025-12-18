@@ -261,7 +261,7 @@ namespace inuMixer
                     // マスターミュート時、またはボリュームがほぼゼロの場合はピークをゼロにする
                     if (MasterIsMuted || MasterVolume < 0.01f)
                     {
-                        MasterPeakValue = 0f;
+                        MasterPeakValue = masterMaxPeak * MasterVolume;
                     }
                     else
                     {

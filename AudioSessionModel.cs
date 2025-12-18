@@ -130,7 +130,7 @@ namespace inuMixer
             // ミュートされている場合、またはボリュームがほぼゼロの場合はピークをゼロにする
             if (IsMuted || Volume < 0.01f)
             {
-                PeakValue = 0f;
+                PeakValue = maxPeak * Volume;
             }
             else
             {
@@ -164,19 +164,24 @@ namespace inuMixer
             {
                 var process = Process.GetProcessById(pid);
 
-                // MainModuleへのアクセスは権限が必要な場合があるため、ここでtry-catchを行う
-                if (process.MainModule?.FileVersionInfo != null)
+                // (1) FileDescriptionの取得を試みるブロック
+                try
                 {
-                    string description = process.MainModule.FileVersionInfo.FileDescription;
-                    if (!string.IsNullOrWhiteSpace(description))
+                    if (process.MainModule?.FileVersionInfo != null)
                     {
-                        return description;
+                        string description = process.MainModule.FileVersionInfo.FileDescription;
+                        if (!string.IsNullOrWhiteSpace(description))
+                        {
+                            return description; // 成功: FileDescriptionを返す
+                        }
                     }
                 }
+                catch { /* 権限不足などでMainModuleアクセス失敗時はこのcatchに入り、下の行へ進む */ }
 
-                return process.ProcessName;
+                // (2) FileDescriptionが取得できなかった場合、または権限エラーが発生した場合
+                return process.ProcessName; // プロセス名 (例: obs64) を返す
             }
-            catch // Process.GetProcessById または MainModule へのアクセス失敗
+            catch // (3) Process.GetProcessById 自体が失敗した場合
             {
                 return "Unknown";
             }

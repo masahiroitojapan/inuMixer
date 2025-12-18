@@ -8,9 +8,12 @@
     <UseWPF>true</UseWPF>
     <ApplicationIcon>Resources\mixer.ico</ApplicationIcon>
     <AssemblyName>inuMixer</AssemblyName>
+    <AssemblyVersion>1.0.1</AssemblyVersion>
+    <FileVersion>1.0.1</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="Resources\logo.png" />
     <None Remove="Resources\mixer.ico" />
     <None Remove="Resources\m_feeder.png" />
     <None Remove="Resources\n_feeder.png" />
@@ -28,6 +31,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Resource Include="Resources\logo.png" />
     <Resource Include="Resources\mixer.ico" />
     <Resource Include="Resources\m_feeder.png" />
     <Resource Include="Resources\n_feeder.png" />

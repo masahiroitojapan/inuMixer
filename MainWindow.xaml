@@ -136,7 +136,8 @@
 
                         <ProgressBar Grid.Column="1" Orientation="Vertical" Minimum="0.0" Maximum="1.0"
                                      Value="{Binding PeakValue, Mode=OneWay}"
-                                     Background="#231B0E" Foreground="#FFFFFF" BorderThickness="0" Height="8"/>
+                                     Background="#231B0E" Foreground="#FFFFFF" BorderThickness="0" 
+                                     Height="8"/>
                     </Grid>
                     <ToggleButton Grid.Row="2" Content="Mute" 
                                               IsChecked="{Binding IsMuted, Mode=TwoWay}"
@@ -200,6 +201,7 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+
     </Window.Resources>
 
     <Grid>

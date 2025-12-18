@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Windows;
 
 namespace inuMixer
@@ -18,6 +19,11 @@ namespace inuMixer
         public SettingsWindow(List<string> currentActiveApps)
         {
             InitializeComponent();
+
+            // アセンブリからバージョン情報を取得して表示
+            var version = Assembly.GetExecutingAssembly().GetName().Version;
+            VersionText.Text = $"v{version.Major}.{version.Minor}.{version.Build}";
+
             AppItems = new List<AppVisibilityItem>();
 
             // 設定読み込み
@@ -36,6 +42,23 @@ namespace inuMixer
                 AppItems.Add(new AppVisibilityItem { Name = appName, IsVisible = !hiddenApps.Contains(appName) });
             }
             AppListControl.ItemsSource = AppItems;
+        }
+
+        private void CheckUpdate_Click(object sender, RoutedEventArgs e)
+        {
+            // アップデート確認のロジック (例: GitHubのReleasesページを開く)
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "https://github.com/masahiroitojapan/inuMixer/releases",
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("ブラウザを開けませんでした: " + ex.Message);
+            }
         }
 
         private void SaveButton_Click(object sender, RoutedEventArgs e)
