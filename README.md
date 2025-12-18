@@ -1,8 +1,8 @@
 # inuMixer
 
-![inumixer](https://i.imgur.com/veKOPw6.png "image")
+![inumixer](https://i.imgur.com/IpO5ivg.gif "image")
 
-ダウンロード:  **[inuMixer v1.0.0](https://github.com/masahiroitojapan/inuMixer/releases/download/v1.0.0/inuMixer.zip)**
+ダウンロード:  **[inuMixer v1.0.1](https://github.com/masahiroitojapan/inuMixer/releases/download/v1.0.1/inuMixer.v1.0.1.zip)**
 
 
 inuMixer は、Windowsでのオーディオ体験を快適にする、DAW風の縦型ボリュームミキサーです。<br>
@@ -34,10 +34,23 @@ inuMixer は、Windowsでのオーディオ体験を快適にする、DAW風の�
 - 設定: 右上の ⚙️ アイコンから、表示・非表示にするアプリを選択できます。
 
 ### 🛠️ 動作環境
+本アプリの実行には .NET 8.0 デスクトップ ランタイム が必要です。<br>
+起動しない場合は、以下の公式サイトよりダウンロードしてインストールしてください。<br>
 - Windows 10 / 11
 - [.NET 8.0 Runtime](https://dotnet.microsoft.com/ja-jp/download/dotnet/8.0)
 - Mark Heath's
   - [NAudio](https://github.com/naudio/NAudio)
+
+### ⚠️ 実行時のセキュリティ警告について
+本ソフトは個人開発のためデジタル署名を行っていません。<br>
+実行時に Windows Defenderにより「Windows によって PC が保護されました」と表示される場合があります。<br>
+実行方法：
+1. 詳細情報をクリック
+1. 「実行」ボタンを押す<br>
+※ソースコードは本リポジトリで公開しており、悪意ある処理は含まれていません。
+
+### 🗑️不要になった場合
+フォルダごと削除して下さい。
 
 ### ⚖️ License
 inuMixer itself, is a MIT License software.<br>
