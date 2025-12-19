@@ -57,3 +57,14 @@ inuMixer itself, is a MIT License software.<br>
 Use of each DLL(library) must be in accordance with the respective license.
 
 Created by itofromjapan
+
+
+
+
+
+<details>
+<summary>🦴犬DOG</summary>
+  
+| ![inudog](https://i.imgur.com/wZ715cB.png "inudog") | He's my 19-year-old buddy from Super Oji-san Dog.<br>Yorkshire Terrier named Beat-kun. <br>Nice to meet ya!
+|:----:|:----|
+</details>
