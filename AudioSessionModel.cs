@@ -14,7 +14,7 @@ namespace inuMixer
         private readonly Dictionary<int, AudioSessionControl> _sessions = new Dictionary<int, AudioSessionControl>();
         private AudioSessionControl _primarySession;
 
-        // ��ԊǗ��p�t�B�[���h
+        // 状態管理用フィールド
         private float _lastVolume = -1;
         private bool _lastMuteState = false;
         private float _peakValue;
@@ -103,7 +103,7 @@ namespace inuMixer
             {
                 foreach (var session in _sessions.Values)
                 {
-                    // ���������_�̔�r�덷���l��
+                    // 浮動小数点の比較誤差を考慮
                     if (Math.Abs(session.SimpleAudioVolume.Volume - value) > 0.001f)
                     {
                         session.SimpleAudioVolume.Volume = value;
@@ -202,7 +202,7 @@ namespace inuMixer
                     float p = session.AudioMeterInformation.MasterPeakValue;
                     if (p > maxPeak) maxPeak = p;
                 }
-                catch { /* AudioMeter���̎擾���s�͖��� */ }
+                catch { /* AudioMeterの値の取得失敗は無視 */ }
             }
 
             PeakValue = maxPeak * Volume;
@@ -242,7 +242,7 @@ namespace inuMixer
         }
 
         /// <summary>
-        /// �v���Z�XID����u���i��/�����v���擾 (��: chrome.exe -> Google Chrome)
+        /// プロセスIDから表示名を取得 (例: chrome.exe -> Google Chrome)
         /// </summary>
         public static string GetFormattedDisplayName(int pid)
         {
@@ -250,7 +250,7 @@ namespace inuMixer
             {
                 var process = Process.GetProcessById(pid);
 
-                // (1) FileDescription�̎擾�����݂�u���b�N
+                // (1) FileDescriptionの取得を試みるブロック
                 try
                 {
                     if (process.MainModule?.FileVersionInfo != null)
@@ -258,16 +258,16 @@ namespace inuMixer
                         string description = process.MainModule.FileVersionInfo.FileDescription;
                         if (!string.IsNullOrWhiteSpace(description))
                         {
-                            return description; // ����: FileDescription��Ԃ�
+                            return description; // 成功: FileDescriptionを返す
                         }
                     }
                 }
-                catch { /* �����s���Ȃǂ�MainModule�A�N�Z�X���s���͂���catch�ɓ���A���̍s�֐i�� */ }
+                catch { /* アクセス拒否などでMainModuleの取得失敗時はここでcatchし次の行へ進む */ }
 
-                // (2) FileDescription���擾�ł��Ȃ������ꍇ�A�܂��͌����G���[�����������ꍇ
-                return process.ProcessName; // �v���Z�X�� (��: obs64) ��Ԃ�
+                // (2) FileDescriptionが取得できなかった場合、または何らかのエラーが発生した場合
+                return process.ProcessName; // プロセス名 (例: obs64) を返す
             }
-            catch // (3) Process.GetProcessById ���̂����s�����ꍇ
+            catch // (3) Process.GetProcessById 自体が失敗した場合
             {
                 return "Unknown";
             }

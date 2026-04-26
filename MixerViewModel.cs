@@ -12,7 +12,7 @@ namespace inuMixer
 {
     public class MixerViewModel : INotifyPropertyChanged, IDisposable
     {
-        // ���������̂���HashSet�ɕύX
+        // 検索性のためHashSetに変更
         private static readonly HashSet<string> ExcludedNames = new HashSet<string>
         {
             "System Sounds",
@@ -141,7 +141,7 @@ namespace inuMixer
             }
             catch (Exception)
             {
-                //�f�o�C�X��������Ȃ����̏������G���[�Ή�
+                // デバイスが見つからない時の初期化エラー対応
             }
         }
 
@@ -343,7 +343,7 @@ namespace inuMixer
         {
             try
             {
-                // LINQ�̌��ʂ𒼐ڊi�[
+                // LINQの結果を直接格納
                 global::inuMixer.Properties.Settings.Default.AppOrder =
                     string.Join(",", AudioSessions.Select(x => x.DisplayName));
                 global::inuMixer.Properties.Settings.Default.Save();
@@ -360,7 +360,7 @@ namespace inuMixer
 
                 var orderList = orderString.Split(',').ToList();
 
-                // �\�����̕��ёւ����W�b�N
+                // 表示順の並び替えロジック
                 var sortedItems = AudioSessions.OrderBy(x =>
                 {
                     int index = orderList.IndexOf(x.DisplayName);
