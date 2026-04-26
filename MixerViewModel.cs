@@ -147,16 +147,44 @@ namespace inuMixer
 
         private void InitializeDevices()
         {
-            AvailableDevices.Clear();
-            AvailableDevices.Add(new AudioDeviceModel { Id = string.Empty, FriendlyName = "デフォルト (システム規定)" });
+            // ── AvailableDevices を差分更新する ──────────────────────────────
+            // Clear() → 再追加すると ComboBox の TwoWay バインディングが SelectedDeviceId に
+            // null を書き戻してしまい、ユーザーが選択したデバイスがリセットされてしまう。
+            // そのため「追加のみ・削除のみ」の差分更新でコレクションを維持する。
+
+            var freshIds = new List<string> { string.Empty }; // 先頭は常に「デフォルト」
 
             try
             {
                 var enumerator = new MMDeviceEnumerator();
-                var devices = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
-                foreach (var device in devices)
+                foreach (var device in enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active))
+                    freshIds.Add(device.ID);
+            }
+            catch { }
+
+            // 現在のリストと同一であれば何もしない
+            var currentIds = AvailableDevices.Select(d => d.Id).ToList();
+            if (currentIds.SequenceEqual(freshIds)) return;
+
+            // 消えたデバイスを削除
+            for (int i = AvailableDevices.Count - 1; i >= 0; i--)
+            {
+                if (!freshIds.Contains(AvailableDevices[i].Id))
+                    AvailableDevices.RemoveAt(i);
+            }
+
+            // 新たに追加されたデバイスを末尾に追加
+            try
+            {
+                // 「デフォルト」エントリが存在しない場合は先頭に挿入
+                if (!AvailableDevices.Any(d => d.Id == string.Empty))
+                    AvailableDevices.Insert(0, new AudioDeviceModel { Id = string.Empty, FriendlyName = "デフォルト (システム規定)" });
+
+                var enumerator = new MMDeviceEnumerator();
+                foreach (var device in enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active))
                 {
-                    AvailableDevices.Add(new AudioDeviceModel { Id = device.ID, FriendlyName = device.FriendlyName });
+                    if (!AvailableDevices.Any(d => d.Id == device.ID))
+                        AvailableDevices.Add(new AudioDeviceModel { Id = device.ID, FriendlyName = device.FriendlyName });
                 }
             }
             catch { }
