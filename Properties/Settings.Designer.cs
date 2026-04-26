@@ -106,5 +106,41 @@ namespace inuMixer.Properties {
                 this["HiddenApps"] = value;
             }
         }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string AppDevices {
+            get {
+                return ((string)(this["AppDevices"]));
+            }
+            set {
+                this["AppDevices"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool MinimizeToTray {
+            get { return ((bool)(this["MinimizeToTray"])); }
+            set { this["MinimizeToTray"] = value; }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool StartWithWindows {
+            get { return ((bool)(this["StartWithWindows"])); }
+            set { this["StartWithWindows"] = value; }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool AutoDetectDevices {
+            get { return ((bool)(this["AutoDetectDevices"])); }
+            set { this["AutoDetectDevices"] = value; }
+        }
     }
 }

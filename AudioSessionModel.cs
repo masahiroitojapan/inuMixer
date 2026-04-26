@@ -14,10 +14,17 @@ namespace inuMixer
         private readonly Dictionary<int, AudioSessionControl> _sessions = new Dictionary<int, AudioSessionControl>();
         private AudioSessionControl _primarySession;
 
-        // ó‘ÔŠÇ——pƒtƒB[ƒ‹ƒh
+        // ï¿½ï¿½ÔŠÇ—ï¿½ï¿½pï¿½tï¿½Bï¿½[ï¿½ï¿½ï¿½h
         private float _lastVolume = -1;
         private bool _lastMuteState = false;
         private float _peakValue;
+        private string _selectedDeviceId = string.Empty;
+
+        // ãƒ”ãƒ¼ã‚¯ãƒ›ãƒ¼ãƒ«ãƒ‰
+        private float _peakHoldValue;
+        private int _peakHoldFrames;
+        private const int PeakHoldDurationFrames = 90;   // ~1.5 ç§’ (60fps æƒ³å®š)
+        private const float PeakHoldDecayRate = 0.008f;  // 1ãƒ•ãƒ¬ãƒ¼ãƒ ã”ã¨ã®æ¸›è¡°é‡
 
         public int ProcessId { get; private set; }
         public string DisplayName { get; private set; }
@@ -36,6 +43,10 @@ namespace inuMixer
             {
                 _sessions.Add(pid, session);
 
+                // æ—¢ã«ã‚«ã‚¹ã‚¿ãƒ ãƒ‡ãƒã‚¤ã‚¹ãŒè¨­å®šã•ã‚Œã¦ã„ã‚‹å ´åˆã€æ–°ã—ã„ãƒ—ãƒ­ã‚»ã‚¹ã«ã‚‚é©ç”¨
+                if (!string.IsNullOrEmpty(_selectedDeviceId))
+                    AudioPolicyConfigService.TrySetEndpointForProcess((uint)pid, _selectedDeviceId);
+
                 if (_primarySession == null)
                 {
                     _primarySession = session;
@@ -43,6 +54,34 @@ namespace inuMixer
                     DisplayName = GetFormattedDisplayName(pid);
                     Icon = GetProcessIcon(pid);
                 }
+            }
+        }
+
+        /// <summary>
+        /// æŒ‡å®šã‚»ãƒƒã‚·ãƒ§ãƒ³ã§æ—¢å­˜ã® PID ã‚»ãƒƒã‚·ãƒ§ãƒ³å‚ç…§ã‚’æ›´æ–°ã€ãªã‘ã‚Œã°æ–°è¦è¿½åŠ ã™ã‚‹ã€‚
+        /// ãƒ‡ãƒã‚¤ã‚¹åˆ‡ã‚Šæ›¿ãˆå¾Œã« SyncSessions() ã‹ã‚‰å‘¼ã°ã‚Œã€æ–°ã—ã„ãƒ‡ãƒã‚¤ã‚¹ã®ã‚»ãƒƒã‚·ãƒ§ãƒ³ã«
+        /// åˆ‡ã‚Šæ›¿ãˆã‚‹ã“ã¨ã§ãƒ”ãƒ¼ã‚¯ãƒ¡ãƒ¼ã‚¿ãƒ¼ã¨ãƒŸãƒ¥ãƒ¼ãƒˆãŒæ­£ã—ãå‹•ä½œã™ã‚‹ã‚ˆã†ã«ãªã‚‹ã€‚
+        /// </summary>
+        public void UpdateOrAddSession(AudioSessionControl newSession)
+        {
+            int pid = (int)newSession.GetProcessID;
+
+            if (_sessions.TryGetValue(pid, out var oldSession))
+            {
+                // åŒã˜ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã§ãªã‘ã‚Œã°æ–°ã—ã„ã‚»ãƒƒã‚·ãƒ§ãƒ³å‚ç…§ã«å·®ã—æ›¿ãˆ
+                if (!ReferenceEquals(oldSession, newSession))
+                {
+                    _sessions[pid] = newSession;
+
+                    if (ReferenceEquals(_primarySession, oldSession))
+                        _primarySession = newSession;
+
+                    try { oldSession.Dispose(); } catch { }
+                }
+            }
+            else
+            {
+                AddSession(newSession);
             }
         }
 
@@ -64,7 +103,7 @@ namespace inuMixer
             {
                 foreach (var session in _sessions.Values)
                 {
-                    // •‚“®¬”“_‚Ì”äŠrŒë·‚ğl—¶
+                    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½_ï¿½Ì”ï¿½rï¿½ë·ï¿½ï¿½ï¿½lï¿½ï¿½
                     if (Math.Abs(session.SimpleAudioVolume.Volume - value) > 0.001f)
                     {
                         session.SimpleAudioVolume.Volume = value;
@@ -114,6 +153,45 @@ namespace inuMixer
             }
         }
 
+        public float PeakHoldValue
+        {
+            get => _peakHoldValue;
+            private set
+            {
+                if (Math.Abs(_peakHoldValue - value) > 0.0005f)
+                {
+                    _peakHoldValue = value;
+                    OnPropertyChanged(nameof(PeakHoldValue));
+                }
+            }
+        }
+
+        /// <summary>é¸æŠä¸­ã®å‡ºåŠ›ãƒ‡ãƒã‚¤ã‚¹IDã€‚ç©ºæ–‡å­—åˆ—ã¯ã‚·ã‚¹ãƒ†ãƒ è¦å®šãƒ‡ãƒã‚¤ã‚¹ã‚’æ„å‘³ã™ã‚‹ã€‚</summary>
+        public string SelectedDeviceId
+        {
+            get => _selectedDeviceId;
+            set
+            {
+                if (_selectedDeviceId != value)
+                {
+                    _selectedDeviceId = value;
+                    ApplyDeviceRouting();
+                    OnPropertyChanged(nameof(SelectedDeviceId));
+                }
+            }
+        }
+
+        private void ApplyDeviceRouting()
+        {
+            foreach (var pid in _sessions.Keys)
+            {
+                if (string.IsNullOrEmpty(_selectedDeviceId))
+                    AudioPolicyConfigService.TryResetEndpointForProcess((uint)pid);
+                else
+                    AudioPolicyConfigService.TrySetEndpointForProcess((uint)pid, _selectedDeviceId);
+            }
+        }
+
         public void UpdateState()
         {
             float maxPeak = 0f;
@@ -124,18 +202,26 @@ namespace inuMixer
                     float p = session.AudioMeterInformation.MasterPeakValue;
                     if (p > maxPeak) maxPeak = p;
                 }
-                catch { /* AudioMeterî•ñ‚Ìæ“¾¸”s‚Í–³‹ */ }
+                catch { /* AudioMeterï¿½ï¿½ï¿½Ìæ“¾ï¿½ï¿½ï¿½sï¿½Í–ï¿½ï¿½ï¿½ */ }
             }
 
-            // ƒ~ƒ…[ƒg‚³‚ê‚Ä‚¢‚éê‡A‚Ü‚½‚Íƒ{ƒŠƒ…[ƒ€‚ª‚Ù‚Úƒ[ƒ‚Ìê‡‚Íƒs[ƒN‚ğƒ[ƒ‚É‚·‚é
-            if (IsMuted || Volume < 0.01f)
+            PeakValue = maxPeak * Volume;
+
+            // ãƒ”ãƒ¼ã‚¯ãƒ›ãƒ¼ãƒ«ãƒ‰ãƒ­ã‚¸ãƒƒã‚¯
+            float currentPeak = PeakValue;
+            if (currentPeak >= _peakHoldValue)
             {
-                PeakValue = maxPeak * Volume;
+                // æ–°ã—ã„ãƒ”ãƒ¼ã‚¯ãŒç¾åœ¨ã®ãƒ›ãƒ¼ãƒ«ãƒ‰å€¤ä»¥ä¸Š â€” æ›´æ–°ã—ã¦ã‚«ã‚¦ãƒ³ã‚¿ãƒ¼ãƒªã‚»ãƒƒãƒˆ
+                PeakHoldValue = currentPeak;
+                _peakHoldFrames = PeakHoldDurationFrames;
+            }
+            else if (_peakHoldFrames > 0)
+            {
+                _peakHoldFrames--; // ãƒ›ãƒ¼ãƒ«ãƒ‰ä¸­
             }
             else
             {
-                // ƒ~ƒ…[ƒg‚³‚ê‚Ä‚¢‚È‚¢ê‡A¶ƒs[ƒN’l‚Éƒ{ƒŠƒ…[ƒ€‚ğæZ‚µAÀÛ‚É•·‚±‚¦‚é‰¹—ÊƒŒƒxƒ‹‚ğ”½‰f
-                PeakValue = maxPeak * Volume;
+                PeakHoldValue = Math.Max(0f, _peakHoldValue - PeakHoldDecayRate); // æ¸›è¡°
             }
 
             float currentVol = _primarySession?.SimpleAudioVolume.Volume ?? 0;
@@ -156,7 +242,7 @@ namespace inuMixer
         }
 
         /// <summary>
-        /// ƒvƒƒZƒXID‚©‚çu»•i–¼/à–¾v‚ğæ“¾ (—á: chrome.exe -> Google Chrome)
+        /// ï¿½vï¿½ï¿½ï¿½Zï¿½XIDï¿½ï¿½ï¿½ï¿½uï¿½ï¿½ï¿½iï¿½ï¿½/ï¿½ï¿½ï¿½ï¿½ï¿½vï¿½ï¿½ï¿½æ“¾ (ï¿½ï¿½: chrome.exe -> Google Chrome)
         /// </summary>
         public static string GetFormattedDisplayName(int pid)
         {
@@ -164,7 +250,7 @@ namespace inuMixer
             {
                 var process = Process.GetProcessById(pid);
 
-                // (1) FileDescription‚Ìæ“¾‚ğ‚İ‚éƒuƒƒbƒN
+                // (1) FileDescriptionï¿½Ìæ“¾ï¿½ï¿½ï¿½ï¿½ï¿½İ‚ï¿½uï¿½ï¿½ï¿½bï¿½N
                 try
                 {
                     if (process.MainModule?.FileVersionInfo != null)
@@ -172,16 +258,16 @@ namespace inuMixer
                         string description = process.MainModule.FileVersionInfo.FileDescription;
                         if (!string.IsNullOrWhiteSpace(description))
                         {
-                            return description; // ¬Œ÷: FileDescription‚ğ•Ô‚·
+                            return description; // ï¿½ï¿½ï¿½ï¿½: FileDescriptionï¿½ï¿½Ô‚ï¿½
                         }
                     }
                 }
-                catch { /* Œ ŒÀ•s‘«‚È‚Ç‚ÅMainModuleƒAƒNƒZƒX¸”s‚Í‚±‚Ìcatch‚É“ü‚èA‰º‚Ìs‚Öi‚Ş */ }
+                catch { /* ï¿½ï¿½ï¿½ï¿½ï¿½sï¿½ï¿½ï¿½È‚Ç‚ï¿½MainModuleï¿½Aï¿½Nï¿½Zï¿½Xï¿½ï¿½ï¿½sï¿½ï¿½ï¿½Í‚ï¿½ï¿½ï¿½catchï¿½É“ï¿½ï¿½ï¿½Aï¿½ï¿½ï¿½Ìsï¿½Öiï¿½ï¿½ */ }
 
-                // (2) FileDescription‚ªæ“¾‚Å‚«‚È‚©‚Á‚½ê‡A‚Ü‚½‚ÍŒ ŒÀƒGƒ‰[‚ª”­¶‚µ‚½ê‡
-                return process.ProcessName; // ƒvƒƒZƒX–¼ (—á: obs64) ‚ğ•Ô‚·
+                // (2) FileDescriptionï¿½ï¿½ï¿½æ“¾ï¿½Å‚ï¿½ï¿½È‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ê‡ï¿½Aï¿½Ü‚ï¿½ï¿½ÍŒï¿½ï¿½ï¿½ï¿½Gï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ê‡
+                return process.ProcessName; // ï¿½vï¿½ï¿½ï¿½Zï¿½Xï¿½ï¿½ (ï¿½ï¿½: obs64) ï¿½ï¿½Ô‚ï¿½
             }
-            catch // (3) Process.GetProcessById ©‘Ì‚ª¸”s‚µ‚½ê‡
+            catch // (3) Process.GetProcessById ï¿½ï¿½ï¿½Ì‚ï¿½ï¿½ï¿½ï¿½sï¿½ï¿½ï¿½ï¿½ï¿½ê‡
             {
                 return "Unknown";
             }

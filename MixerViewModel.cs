@@ -12,7 +12,7 @@ namespace inuMixer
 {
     public class MixerViewModel : INotifyPropertyChanged, IDisposable
     {
-        // ���������̂���HashSet�ɕύX
+        // ���������̂���HashSet�ɕύX
         private static readonly HashSet<string> ExcludedNames = new HashSet<string>
         {
             "System Sounds",
@@ -24,13 +24,23 @@ namespace inuMixer
         private DispatcherTimer _peakMeterTimer;
         private DispatcherTimer _autoRefreshTimer;
 
-        // �R���N�V����
+        // コレクション
         public ObservableCollection<AudioSessionModel> AudioSessions { get; set; } = new ObservableCollection<AudioSessionModel>();
+
+        // 利用可能なオーディオ出力デバイス一覧 (先頭は "デフォルト" = Id が空文字)
+        public ObservableCollection<AudioDeviceModel> AvailableDevices { get; } = new ObservableCollection<AudioDeviceModel>();
+
+        // アプリ名 → 選択デバイスID の永続化マップ
+        private Dictionary<string, string> _appDeviceMap = new();
 
         public ICommand RefreshCommand { get; private set; }
 
-        // �}�X�^�{�����[���֘A�t�B�[���h
+        // マスターピーク関連フィールド
         private float _masterPeakValue;
+        private float _masterPeakHoldValue;
+        private int _masterPeakHoldFrames;
+        private const int MasterPeakHoldDurationFrames = 90;
+        private const float MasterPeakHoldDecayRate = 0.008f;
 
         public MixerViewModel()
         {
@@ -41,8 +51,17 @@ namespace inuMixer
             {
                 Interval = TimeSpan.FromSeconds(3)
             };
-            _autoRefreshTimer.Tick += (s, e) => SyncSessions();
+            _autoRefreshTimer.Tick += AutoRefreshTimer_Tick;
             _autoRefreshTimer.Start();
+        }
+
+        private void AutoRefreshTimer_Tick(object sender, EventArgs e)
+        {
+            // AutoDetectDevices が有効な場合はデバイス一覧も更新する
+            if (global::inuMixer.Properties.Settings.Default.AutoDetectDevices)
+                InitializeDevices();
+
+            SyncSessions();
         }
 
         #region Master Volume Properties
@@ -89,6 +108,19 @@ namespace inuMixer
             }
         }
 
+        public float MasterPeakHoldValue
+        {
+            get => _masterPeakHoldValue;
+            private set
+            {
+                if (Math.Abs(_masterPeakHoldValue - value) > 0.0005f)
+                {
+                    _masterPeakHoldValue = value;
+                    OnPropertyChanged(nameof(MasterPeakHoldValue));
+                }
+            }
+        }
+
         #endregion
 
         private void InitializeAudioSessions()
@@ -99,6 +131,9 @@ namespace inuMixer
                 _device = deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
                 _sessionManager = _device.AudioSessionManager;
 
+                InitializeDevices();
+                LoadAppDevices();
+
                 OnPropertyChanged(nameof(MasterVolume));
                 OnPropertyChanged(nameof(MasterIsMuted));
 
@@ -106,39 +141,140 @@ namespace inuMixer
             }
             catch (Exception)
             {
-                // �f�o�C�X��������Ȃ����̏������G���[�Ή�
+                //�f�o�C�X��������Ȃ����̏������G���[�Ή�
             }
+        }
+
+        private void InitializeDevices()
+        {
+            AvailableDevices.Clear();
+            AvailableDevices.Add(new AudioDeviceModel { Id = string.Empty, FriendlyName = "デフォルト (システム規定)" });
+
+            try
+            {
+                var enumerator = new MMDeviceEnumerator();
+                var devices = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+                foreach (var device in devices)
+                {
+                    AvailableDevices.Add(new AudioDeviceModel { Id = device.ID, FriendlyName = device.FriendlyName });
+                }
+            }
+            catch { }
+        }
+
+        private void LoadAppDevices()
+        {
+            _appDeviceMap.Clear();
+            try
+            {
+                string saved = global::inuMixer.Properties.Settings.Default.AppDevices;
+                if (string.IsNullOrEmpty(saved)) return;
+
+                foreach (var entry in saved.Split(';'))
+                {
+                    var parts = entry.Split('|');
+                    if (parts.Length == 2 && !string.IsNullOrEmpty(parts[0]))
+                    {
+                        string appName = parts[0];
+                        string deviceId = parts[1];
+                        if (AvailableDevices.Any(d => d.Id == deviceId))
+                            _appDeviceMap[appName] = deviceId;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        public void SaveAppDevices()
+        {
+            try
+            {
+                var entries = AudioSessions
+                    .Where(s => !string.IsNullOrEmpty(s.SelectedDeviceId))
+                    .Select(s => $"{s.DisplayName}|{s.SelectedDeviceId}");
+                global::inuMixer.Properties.Settings.Default.AppDevices = string.Join(";", entries);
+                global::inuMixer.Properties.Settings.Default.Save();
+            }
+            catch { }
         }
 
         public void SyncSessions()
         {
-            if (_sessionManager == null) return;
-
-            _sessionManager.RefreshSessions();
-
             string hiddenAppsStr = global::inuMixer.Properties.Settings.Default.HiddenApps;
             var hiddenApps = string.IsNullOrEmpty(hiddenAppsStr)
                 ? new HashSet<string>()
                 : new HashSet<string>(hiddenAppsStr.Split(','));
 
-            var activePids = new HashSet<int>();
-            var pendingSessions = new List<(string DisplayName, AudioSessionControl Session)>();
+            // 現在の各モデルのルーティング先デバイスIDを記録
+            // (デバイス切り替え後、正しいデバイスのセッションを優先するために使用)
+            var modelTargetDeviceIds = AudioSessions.ToDictionary(
+                m => m.DisplayName,
+                m => m.SelectedDeviceId ?? string.Empty);
 
-            // �A�N�e�B�u�ȃZ�b�V���������W
-            for (int i = 0; i < _sessionManager.Sessions.Count; i++)
+            // ── Step 1: 全アクティブレンダーデバイスからセッションを収集 ──────
+            // PID → (セッション, デバイスID) のリスト
+            var sessionsByPid = new Dictionary<int, List<(AudioSessionControl Session, string DeviceId)>>();
+
+            try
             {
-                var session = _sessionManager.Sessions[i];
-                int pid = (int)session.GetProcessID;
+                var enumerator = new MMDeviceEnumerator();
+                var allDevices = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
 
-                if (pid > 0 && (session.State == AudioSessionState.AudioSessionStateActive || session.State == AudioSessionState.AudioSessionStateInactive))
+                foreach (var device in allDevices)
                 {
-                    activePids.Add(pid);
-                    string displayName = AudioSessionModel.GetFormattedDisplayName(pid);
-                    pendingSessions.Add((displayName, session));
+                    try
+                    {
+                        var sm = device.AudioSessionManager;
+                        sm.RefreshSessions();
+
+                        for (int i = 0; i < sm.Sessions.Count; i++)
+                        {
+                            var session = sm.Sessions[i];
+                            int pid = (int)session.GetProcessID;
+
+                            if (pid > 0 && session.State != AudioSessionState.AudioSessionStateExpired)
+                            {
+                                if (!sessionsByPid.ContainsKey(pid))
+                                    sessionsByPid[pid] = new List<(AudioSessionControl, string)>();
+                                sessionsByPid[pid].Add((session, device.ID));
+                            }
+                        }
+                    }
+                    catch { }
                 }
             }
+            catch { }
 
-            // �폜�t�F�[�Y: �I�������v���Z�X���\���ݒ肳�ꂽ�A�v��������
+            // ── Step 2: 各PIDの「最適」セッションを決定 ──────────────────────
+            // 優先順: ① ルーティング先デバイス > ② デフォルトデバイス > ③ 最初のデバイス
+            var activePids = new HashSet<int>(sessionsByPid.Keys);
+            var pendingSessions = new List<(string DisplayName, AudioSessionControl Session)>();
+            string defaultDeviceId = _device?.ID ?? string.Empty;
+
+            foreach (var (pid, sessions) in sessionsByPid)
+            {
+                string displayName = AudioSessionModel.GetFormattedDisplayName(pid);
+                if (ExcludedNames.Contains(displayName) || hiddenApps.Contains(displayName)) continue;
+
+                modelTargetDeviceIds.TryGetValue(displayName, out string targetDeviceId);
+
+                AudioSessionControl bestSession = null;
+
+                // ① ルーティング先デバイスのセッション
+                if (!string.IsNullOrEmpty(targetDeviceId))
+                    bestSession = sessions.FirstOrDefault(s => s.DeviceId == targetDeviceId).Session;
+
+                // ② デフォルトデバイスのセッション
+                if (bestSession == null && !string.IsNullOrEmpty(defaultDeviceId))
+                    bestSession = sessions.FirstOrDefault(s => s.DeviceId == defaultDeviceId).Session;
+
+                // ③ 最初のセッション (フォールバック)
+                bestSession ??= sessions[0].Session;
+
+                pendingSessions.Add((displayName, bestSession));
+            }
+
+            // ── Step 3: 削除フェーズ ──────────────────────────────────────────
             for (int i = AudioSessions.Count - 1; i >= 0; i--)
             {
                 var model = AudioSessions[i];
@@ -151,25 +287,24 @@ namespace inuMixer
                 }
             }
 
-            // �ǉ��E�����t�F�[�Y
-            foreach (var item in pendingSessions)
+            // ── Step 4: 追加・更新フェーズ ───────────────────────────────────
+            foreach (var (displayName, session) in pendingSessions)
             {
-                string displayName = item.DisplayName;
-                var session = item.Session;
-
-                if (ExcludedNames.Contains(displayName) || hiddenApps.Contains(displayName)) continue;
-
                 var existingModel = AudioSessions.FirstOrDefault(m => m.DisplayName == displayName);
 
                 if (existingModel != null)
                 {
-                    existingModel.AddSession(session);
+                    // デバイス切り替え後のセッション参照を更新
+                    existingModel.UpdateOrAddSession(session);
                 }
                 else
                 {
                     var newModel = new AudioSessionModel(session);
                     if (!string.IsNullOrWhiteSpace(newModel.DisplayName) && !hiddenApps.Contains(newModel.DisplayName))
                     {
+                        if (_appDeviceMap.TryGetValue(newModel.DisplayName, out string? savedDeviceId))
+                            newModel.SelectedDeviceId = savedDeviceId;
+
                         AudioSessions.Add(newModel);
                     }
                 }
@@ -180,7 +315,7 @@ namespace inuMixer
         {
             try
             {
-                // LINQ�̌��ʂ𒼐ڊi�[
+                // LINQ�̌��ʂ𒼐ڊi�[
                 global::inuMixer.Properties.Settings.Default.AppOrder =
                     string.Join(",", AudioSessions.Select(x => x.DisplayName));
                 global::inuMixer.Properties.Settings.Default.Save();
@@ -197,7 +332,7 @@ namespace inuMixer
 
                 var orderList = orderString.Split(',').ToList();
 
-                // �\�����̕��ёւ����W�b�N
+                // �\�����̕��ёւ����W�b�N
                 var sortedItems = AudioSessions.OrderBy(x =>
                 {
                     int index = orderList.IndexOf(x.DisplayName);
@@ -257,16 +392,22 @@ namespace inuMixer
                 try
                 {
                     float masterMaxPeak = _device.AudioMeterInformation.MasterPeakValue;
+                    MasterPeakValue = masterMaxPeak * MasterVolume;
 
-                    // �}�X�^�[�~���[�g���A�܂��̓{�����[�����قڃ[���̏ꍇ�̓s�[�N���[���ɂ���
-                    if (MasterIsMuted || MasterVolume < 0.01f)
+                    // ピークホールド
+                    float masterCurrent = MasterPeakValue;
+                    if (masterCurrent >= _masterPeakHoldValue)
                     {
-                        MasterPeakValue = masterMaxPeak * MasterVolume;
+                        MasterPeakHoldValue = masterCurrent;
+                        _masterPeakHoldFrames = MasterPeakHoldDurationFrames;
+                    }
+                    else if (_masterPeakHoldFrames > 0)
+                    {
+                        _masterPeakHoldFrames--;
                     }
                     else
                     {
-                        // �{�����[������Z���A���ۂɕ������鉹�ʃ��x���𔽉f������
-                        MasterPeakValue = masterMaxPeak * MasterVolume;
+                        MasterPeakHoldValue = Math.Max(0f, _masterPeakHoldValue - MasterPeakHoldDecayRate);
                     }
                 }
                 catch { }

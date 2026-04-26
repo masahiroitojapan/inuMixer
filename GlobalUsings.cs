@@ -1,0 +1,12 @@
+// UseWindowsForms と WPF の型名衝突を解消するグローバルエイリアス
+// NotifyIcon を使うために UseWindowsForms=true が必要だが、同名型が多数あるため明示的に解決する。
+global using Application = System.Windows.Application;
+global using Button = System.Windows.Controls.Button;
+global using ComboBox = System.Windows.Controls.ComboBox;
+global using ComboBoxItem = System.Windows.Controls.ComboBoxItem;
+global using Cursors = System.Windows.Input.Cursors;
+global using MessageBox = System.Windows.MessageBox;
+global using MouseEventArgs = System.Windows.Input.MouseEventArgs;
+global using Point = System.Windows.Point;
+global using Size = System.Windows.Size;
+global using Timer = System.Windows.Threading.DispatcherTimer;

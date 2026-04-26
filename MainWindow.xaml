@@ -12,6 +12,8 @@
     </WindowChrome.WindowChrome>
 
     <Window.Resources>
+        <local:PeakHoldToMarginConverter x:Key="PeakHoldToMarginConverter"/>
+
         <ControlTemplate x:Key="MasterThumbTemplate" TargetType="{x:Type Thumb}">
             <Grid>
                 <Image Source="pack://application:,,,/inuMixer;component/Resources/m_feeder.png" 
@@ -112,6 +114,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <StackPanel Grid.Row="0">
@@ -134,15 +137,26 @@
                                 HorizontalAlignment="Center"
                                 TickFrequency="0.1"/>
 
-                        <ProgressBar Grid.Column="1" Orientation="Vertical" Minimum="0.0" Maximum="1.0"
-                                     Value="{Binding PeakValue, Mode=OneWay}"
-                                     Background="#231B0E" Foreground="#FFFFFF" BorderThickness="0" 
-                                     Height="8"/>
+                        <!-- ピークメーター + ホールドライン -->
+                        <Grid Grid.Column="1" x:Name="AppPeakGrid">
+                            <ProgressBar Orientation="Vertical" Minimum="0.0" Maximum="1.0"
+                                         Value="{Binding PeakValue, Mode=OneWay}"
+                                         Background="#231B0E" Foreground="#FFFFFF" BorderThickness="0"/>
+                            <Border Height="2" Background="#FFD700" VerticalAlignment="Bottom"
+                                    HorizontalAlignment="Stretch" IsHitTestVisible="False">
+                                <Border.Margin>
+                                    <MultiBinding Converter="{StaticResource PeakHoldToMarginConverter}">
+                                        <Binding Path="PeakHoldValue"/>
+                                        <Binding Path="ActualHeight" RelativeSource="{RelativeSource AncestorType=Grid}"/>
+                                    </MultiBinding>
+                                </Border.Margin>
+                            </Border>
+                        </Grid>
                     </Grid>
-                    <ToggleButton Grid.Row="2" Content="Mute" 
+                    <ToggleButton Grid.Row="2" Content="Mute"
                                               IsChecked="{Binding IsMuted, Mode=TwoWay}"
-                                              Foreground="White" FontWeight="Bold" 
-                                              Background="#6B6B6B" 
+                                              Foreground="White" FontWeight="Bold"
+                                              Background="#6B6B6B"
                                               Margin="0,5,0,0">
 
                         <ToggleButton.Style>
@@ -172,6 +186,28 @@
                             </Style>
                         </ToggleButton.Style>
                     </ToggleButton>
+
+                    <!-- 出力デバイス選択 -->
+                    <ComboBox Grid.Row="3"
+                              ItemsSource="{Binding DataContext.AvailableDevices, RelativeSource={RelativeSource AncestorType=Window}}"
+                              SelectedValue="{Binding SelectedDeviceId, Mode=TwoWay}"
+                              SelectedValuePath="Id"
+                              Margin="0,4,0,2"
+                              Height="24"
+                              FontSize="11"
+                              Foreground="White"
+                              Background="#2A3545"
+                              BorderBrush="#555555"
+                              ToolTip="出力デバイスを選択">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding FriendlyName}"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip="{Binding FriendlyName}"
+                                           FontSize="11"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
                 </Grid>
             </Border>
         </DataTemplate>
@@ -268,6 +304,7 @@
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="*"/>
                                     <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
                                 <StackPanel Grid.Row="0">
                                     <materialDesign:PackIcon Kind="MonitorSpeaker"  Width="32" Height="32"
@@ -291,9 +328,21 @@
                                             HorizontalAlignment="Center"
                                             TickFrequency="0.1" />
 
-                                    <ProgressBar Grid.Column="1" Orientation="Vertical" Minimum="0.0" Maximum="1.0"
-                                                 Value="{Binding MasterPeakValue, Mode=OneWay}"
-                                                 Background="#231B0E" Foreground="#FFFFFF" BorderThickness="0" Height="8"/>
+                                    <!-- マスターピークメーター + ホールドライン -->
+                                    <Grid Grid.Column="1" x:Name="MasterPeakGrid">
+                                        <ProgressBar Orientation="Vertical" Minimum="0.0" Maximum="1.0"
+                                                     Value="{Binding MasterPeakValue, Mode=OneWay}"
+                                                     Background="#231B0E" Foreground="#FFFFFF" BorderThickness="0"/>
+                                        <Border Height="2" Background="#FFD700" VerticalAlignment="Bottom"
+                                                HorizontalAlignment="Stretch" IsHitTestVisible="False">
+                                            <Border.Margin>
+                                                <MultiBinding Converter="{StaticResource PeakHoldToMarginConverter}">
+                                                    <Binding Path="MasterPeakHoldValue"/>
+                                                    <Binding Path="ActualHeight" RelativeSource="{RelativeSource AncestorType=Grid}"/>
+                                                </MultiBinding>
+                                            </Border.Margin>
+                                        </Border>
+                                    </Grid>
                                 </Grid>
                                 <ToggleButton Grid.Row="2" Content="Mute" 
                                               IsChecked="{Binding MasterIsMuted, Mode=TwoWay}"
@@ -328,6 +377,9 @@
                                         </Style>
                                     </ToggleButton.Style>
                                 </ToggleButton>
+
+                                <!-- アプリフェーダーのComboBoxと高さを揃えるスペーサー -->
+                                <Border Grid.Row="3" Height="24" Margin="0,4,0,2" Visibility="Hidden"/>
 
                             </Grid>
                         </Border>

@@ -58,6 +58,7 @@ namespace inuMixer
         private void MainWindow_Closed(object sender, EventArgs e)
         {
             _viewModel?.SaveOrder();
+            _viewModel?.SaveAppDevices();
             _viewModel?.Dispose();
 
             try
@@ -92,7 +93,11 @@ namespace inuMixer
 
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
-            this.Close();
+            // MinimizeToTray が有効な場合はウィンドウを非表示にしてトレイに常駐
+            if (global::inuMixer.Properties.Settings.Default.MinimizeToTray)
+                this.Hide();
+            else
+                this.Close();
         }
 
         private void SettingsButton_Click(object sender, RoutedEventArgs e)
@@ -214,7 +219,7 @@ namespace inuMixer
             while (current != null)
             {
                 if (current == _draggedItemContainer) return false;
-                if (current is Slider || current is ToggleButton || current is Button || current is Thumb) return true;
+                if (current is Slider || current is ToggleButton || current is Button || current is Thumb || current is ComboBox || current is ComboBoxItem) return true;
                 current = VisualTreeHelper.GetParent(current);
             }
             return false;

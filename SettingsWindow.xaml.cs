@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Win32;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -25,6 +26,16 @@ namespace inuMixer
             VersionText.Text = $"v{version.Major}.{version.Minor}.{version.Build}";
 
             AppItems = new List<AppVisibilityItem>();
+
+            // ── システム設定の読み込み ────────────────────────────────────
+            try
+            {
+                var s = global::inuMixer.Properties.Settings.Default;
+                MinimizeToTrayCheck.IsChecked     = s.MinimizeToTray;
+                StartWithWindowsCheck.IsChecked   = s.StartWithWindows;
+                AutoDetectDevicesCheck.IsChecked  = s.AutoDetectDevices;
+            }
+            catch { }
 
             // 設定読み込み
             string hiddenAppsStr = "";
@@ -63,6 +74,33 @@ namespace inuMixer
 
         private void SaveButton_Click(object sender, RoutedEventArgs e)
         {
+            // ── システム設定の保存 ─────────────────────────────────────────
+            try
+            {
+                var s = global::inuMixer.Properties.Settings.Default;
+                s.MinimizeToTray    = MinimizeToTrayCheck.IsChecked   == true;
+                s.StartWithWindows  = StartWithWindowsCheck.IsChecked == true;
+                s.AutoDetectDevices = AutoDetectDevicesCheck.IsChecked == true;
+            }
+            catch { }
+
+            // ── Windows 自動起動レジストリの更新 ──────────────────────────
+            try
+            {
+                const string runKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
+                using var key = Registry.CurrentUser.OpenSubKey(runKey, writable: true);
+                if (key != null)
+                {
+                    string appPath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName ?? string.Empty;
+                    if (StartWithWindowsCheck.IsChecked == true && !string.IsNullOrEmpty(appPath))
+                        key.SetValue("inuMixer", $"\"{appPath}\"");
+                    else
+                        key.DeleteValue("inuMixer", throwOnMissingValue: false);
+                }
+            }
+            catch { }
+
+            // ── 非表示アプリ一覧の保存 ────────────────────────────────────
             var hiddenList = AppItems.Where(x => !x.IsVisible).Select(x => x.Name).ToList();
             string saveStr = string.Join(",", hiddenList);
 
